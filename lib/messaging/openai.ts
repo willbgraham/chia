@@ -2,6 +2,7 @@
 // small — every call we need is a simple POST to the chat completions endpoint.
 
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const TRANSCRIPTION_ENDPOINT = "https://api.openai.com/v1/audio/transcriptions";
 const DEFAULT_MODEL = "gpt-4o-mini";
 
 interface ChatMessage {
@@ -77,6 +78,63 @@ export async function chiaTextTurn(args: {
       { role: "user", content: args.userMessage },
     ],
     { temperature: 0.8, max_tokens: 400 },
+  );
+}
+
+// Whisper transcription — turn audio bytes into text. Used for the
+// voice-note correction loop. We pass language=es so Whisper is biased
+// toward recognising Spanish.
+export async function transcribeAudio(
+  audio: ArrayBuffer,
+  options: { language?: string; mimeType?: string } = {},
+): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+
+  const blob = new Blob([audio], {
+    type: options.mimeType ?? "audio/ogg",
+  });
+  const form = new FormData();
+  form.append("file", blob, "voice.ogg");
+  form.append("model", "whisper-1");
+  form.append("language", options.language ?? "es");
+
+  const res = await fetch(TRANSCRIPTION_ENDPOINT, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Whisper ${res.status}: ${text}`);
+  }
+  const j = (await res.json()) as { text?: string };
+  return j.text ?? "";
+}
+
+// Pronunciation analysis — given the target phrase the student was
+// attempting and what they actually said, produce Chia's warm correction
+// in 1-2 sentences. Returns: text reply.
+export async function analysePronunciation(args: {
+  targetPhrase: string;
+  transcription: string;
+  studentName?: string | null;
+  agentVoicePrompt: string;
+}): Promise<string> {
+  const systemPrompt = args.agentVoicePrompt
+    .replace("[PENDING_PHRASE]", args.targetPhrase)
+    .replace("[STUDENT_NAME]", args.studentName ?? "amig@");
+
+  return chatCompletion(
+    [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: `What I said was: "${args.transcription}"`,
+      },
+    ],
+    { temperature: 0.7, max_tokens: 200 },
   );
 }
 

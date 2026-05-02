@@ -54,6 +54,9 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
       currentState: state.state,
       pendingPhrase: state.pending_phrase,
       audioMediaId: msg.audioMediaId,
+      userPlan: user.plan,
+      billingPeriodStart: user.billing_period_start,
+      teacherId: user.teacher_id,
     });
     return;
   }
