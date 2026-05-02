@@ -92,7 +92,47 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (error) throw new Error(`User update failed: ${error.message}`);
   if (!user) throw new Error(`No user with whatsapp_number ${whatsapp}`);
 
+  // If the user just upgraded mid-onboarding (state was onboarding_step_7),
+  // advance them out of onboarding into the active chat state. Otherwise
+  // their next message would be parsed as a plan-choice reply.
+  await advancePostUpgrade(user.id);
+
   await sendReactivationMessage(whatsapp);
+}
+
+async function advancePostUpgrade(userId: string): Promise<void> {
+  try {
+    const sb = getAdminClient();
+    const { data: state } = await sb
+      .from("conversation_state")
+      .select("state")
+      .eq("user_id", userId)
+      .single();
+    if (state?.state !== "onboarding_step_7") return;
+
+    const { data: user } = await sb
+      .from("users")
+      .select("memory_json")
+      .eq("id", userId)
+      .single();
+    const memory =
+      (user?.memory_json as { lesson_mode?: string } | null) ?? {};
+    const nextState =
+      memory.lesson_mode === "free"
+        ? "active_free_chat"
+        : memory.lesson_mode === "structured" || memory.lesson_mode === "both"
+          ? "active_structured_lesson"
+          : "active_free_chat";
+    await sb
+      .from("conversation_state")
+      .update({
+        state: nextState,
+        last_message_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+  } catch (err) {
+    console.error("[stripe webhook] advancePostUpgrade error:", err);
+  }
 }
 
 // Renew billing period each time a subscription invoice is paid so
