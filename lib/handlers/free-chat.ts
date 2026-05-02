@@ -33,27 +33,16 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   await appendMessage(args.userId, "user", args.userMessage);
   await appendMessage(args.userId, "assistant", reply);
 
-  // If Chia offered audio (heuristic: response contains 🎵 or "hear me"),
-  // extract the target Spanish phrase and switch state.
-  if (offeredAudio(reply)) {
-    const phrase = await extractTargetPhrase(reply);
-    if (phrase) {
-      await updateState(args.userId, {
-        state: "awaiting_audio_confirm",
-        pending_phrase: phrase,
-      });
-    }
+  // Always run the phrase extractor — it returns null if Chia didn't
+  // actually offer audio. Cheaper than maintaining a phrasing heuristic
+  // that misses turns of phrase the model uses.
+  const phrase = await extractTargetPhrase(reply);
+  if (phrase) {
+    await updateState(args.userId, {
+      state: "awaiting_audio_confirm",
+      pending_phrase: phrase,
+    });
   }
-}
-
-function offeredAudio(reply: string): boolean {
-  const t = reply.toLowerCase();
-  return (
-    reply.includes("🎵") ||
-    t.includes("hear me say") ||
-    t.includes("want to hear") ||
-    t.includes("listen to me say")
-  );
 }
 
 async function extractTargetPhrase(reply: string): Promise<string | null> {
