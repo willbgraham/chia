@@ -37,7 +37,7 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // Detect upgrade intent — if the student is on free and asks to
   // upgrade, send them the Stripe payment link as a follow-up message.
   if (args.userPlan === "free" && wantsUpgrade(args.userMessage)) {
-    await sendUpgradeLink(args.whatsappNumber);
+    await sendUpgradeLink(args.whatsappNumber, args.userId);
   }
 
   // Always run the phrase extractor — it returns null if Chia didn't
@@ -92,7 +92,10 @@ function wantsUpgrade(message: string): boolean {
   return triggers.some((kw) => t.includes(kw));
 }
 
-async function sendUpgradeLink(whatsappNumber: string): Promise<void> {
+async function sendUpgradeLink(
+  whatsappNumber: string,
+  userId: string,
+): Promise<void> {
   const link = process.env.STRIPE_PREMIUM_PAYMENT_LINK;
   if (!link) {
     await sendText(
@@ -101,7 +104,10 @@ async function sendUpgradeLink(whatsappNumber: string): Promise<void> {
     );
     return;
   }
-  const url = `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${encodeURIComponent(whatsappNumber)}`;
+  // Use user.id (UUID) as client_reference_id — URL-safe and won't get
+  // mangled like the phone number (+ → %2B). The Stripe webhook looks
+  // up by id to flip the user to premium.
+  const url = `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${userId}`;
   await sendText(
     whatsappNumber,
     `Premium gets you my voice and pronunciation practice — €25/month, cancel anytime 🌿\n\n${url}\n\nOnce you're done, message me back and we'll get going.`,

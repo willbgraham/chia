@@ -62,14 +62,15 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true });
 }
 
-// On checkout completion, the user's WhatsApp number arrives via
-// `client_reference_id` (the Make scenario appends it to the
-// Payment Link URL when it sends the link to the student).
+// On checkout completion, the user's UUID arrives via `client_reference_id`
+// (we append user.id to the Payment Link URL when sending it). UUIDs are
+// URL-safe — phone numbers used to be encoded as %2B which looked ugly
+// and caused decoding edge cases.
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const whatsapp = session.client_reference_id?.trim();
-  if (!whatsapp) {
+  const ref = session.client_reference_id?.trim();
+  if (!ref) {
     throw new Error(
-      "checkout.session.completed missing client_reference_id (whatsapp_number)",
+      "checkout.session.completed missing client_reference_id",
     );
   }
   const customerId =
@@ -78,6 +79,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       : session.customer?.id ?? null;
 
   const sb = getAdminClient();
+  // Try by user UUID first (the new format). Fall back to whatsapp_number
+  // for any old payment links that pre-date this change.
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      ref,
+    );
+  const filterColumn = isUuid ? "id" : "whatsapp_number";
+
   const { data: user, error } = await sb
     .from("users")
     .update({
@@ -85,19 +94,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripe_customer_id: customerId,
       billing_period_start: new Date().toISOString(),
     })
-    .eq("whatsapp_number", whatsapp)
-    .select("id")
+    .eq(filterColumn, ref)
+    .select("id, whatsapp_number")
     .single();
 
   if (error) throw new Error(`User update failed: ${error.message}`);
-  if (!user) throw new Error(`No user with whatsapp_number ${whatsapp}`);
+  if (!user) throw new Error(`No user matching client_reference_id ${ref}`);
 
-  // If the user just upgraded mid-onboarding (state was onboarding_step_7),
-  // advance them out of onboarding into the active chat state. Otherwise
-  // their next message would be parsed as a plan-choice reply.
+  // If the user just upgraded mid-onboarding, advance them out of step 7.
   await advancePostUpgrade(user.id);
 
-  await sendReactivationMessage(whatsapp);
+  await sendReactivationMessage(user.whatsapp_number);
 }
 
 async function advancePostUpgrade(userId: string): Promise<void> {

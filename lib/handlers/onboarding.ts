@@ -213,10 +213,9 @@ async function processStep7(args: OnboardingArgs): Promise<void> {
   if (choice === "premium") {
     await patchMemory(args.userId, { plan: "premium" });
     const link = process.env.STRIPE_PREMIUM_PAYMENT_LINK ?? "";
+    // Use user.id (UUID) as client_reference_id — URL-safe.
     const url = link
-      ? `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${encodeURIComponent(
-          args.whatsappNumber,
-        )}`
+      ? `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${args.userId}`
       : "";
     await sendText(
       args.whatsappNumber,
