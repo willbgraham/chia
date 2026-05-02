@@ -56,16 +56,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
-  // Forward to Make scenario 1. Fire-and-forget so we return 200 to Meta
-  // fast even if Make is slow.
+  // Forward to Make scenario 1. We await so Vercel's serverless runtime
+  // doesn't kill the lambda before the forward completes. Make's webhook
+  // responds in <1s, well within Meta's ~20s timeout window.
   const makeUrl = process.env.MAKE_WHATSAPP_WEBHOOK_URL;
   if (makeUrl) {
-    // Don't await — return to Meta immediately; let the forward complete
-    // in the background. If it fails, log and move on (Meta won't retry,
-    // we'll see the failure in Vercel logs).
-    void forwardToMake(makeUrl, rawBody, request.headers).catch((err) => {
+    try {
+      await forwardToMake(makeUrl, rawBody, request.headers);
+    } catch (err) {
+      // Log but still return 200 to Meta — Meta retrying won't help if
+      // Make is broken, and we don't want to drop the message.
       console.error("[whatsapp passthrough] forward to Make failed:", err);
-    });
+    }
   } else {
     console.warn(
       "[whatsapp passthrough] MAKE_WHATSAPP_WEBHOOK_URL not set — payload received but not forwarded",
