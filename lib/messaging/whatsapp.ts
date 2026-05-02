@@ -130,7 +130,9 @@ export async function downloadMedia(mediaUrl: string): Promise<ArrayBuffer> {
 async function parseSendResponse(res: Response): Promise<SendResult> {
   if (!res.ok) {
     const text = await res.text();
-    return { error: `${res.status} ${text}` };
+    const errMsg = `${res.status} ${text}`;
+    console.error("[whatsapp] send failed:", errMsg);
+    return { error: errMsg };
   }
   const j = (await res.json()) as { messages?: Array<{ id: string }> };
   return { message_id: j.messages?.[0]?.id };

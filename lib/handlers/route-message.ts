@@ -27,6 +27,9 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
   let user = await findUser(msg.whatsappNumber);
   if (!user) {
     user = await createNewUser(msg.whatsappNumber);
+    // Create the conversation_state row immediately so subsequent
+    // updateState() calls inside handleOnboarding find a row to update.
+    await getOrCreateState(user.id);
     // For brand-new users, force them to onboarding step 1 regardless of
     // what type of message came in.
     await handleOnboarding({

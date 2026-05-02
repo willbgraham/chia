@@ -34,14 +34,23 @@ export async function updateState(
   }>,
 ): Promise<void> {
   const sb = getAdminClient();
-  const { error } = await sb
+  const { data, error } = await sb
     .from("conversation_state")
     .update({
       ...patch,
       last_message_at: new Date().toISOString(),
     })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("id");
   if (error) throw new Error(`updateState: ${error.message}`);
+  if (!data || data.length === 0) {
+    // No row to update — likely a bug upstream where the state row
+    // wasn't created before the first update. Log loudly.
+    console.error(
+      `[updateState] no conversation_state row for user ${userId} — patch ignored`,
+      patch,
+    );
+  }
 }
 
 // Touch last_message_at without changing state. Used to keep idle detection
