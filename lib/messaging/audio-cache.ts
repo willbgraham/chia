@@ -48,12 +48,8 @@ export async function getOrCreateAudio(
     { search: key.split("/").pop() },
   );
   if (existing && existing.length > 0) {
-    const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(key);
-    return {
-      publicUrl: pub.publicUrl,
-      fromCache: true,
-      charactersGenerated: 0,
-    };
+    const url = await signedUrl(sb, key);
+    return { publicUrl: url, fromCache: true, charactersGenerated: 0 };
   }
 
   // Cache miss → generate, upload, return.
@@ -65,10 +61,22 @@ export async function getOrCreateAudio(
     throw new Error(`audio upload failed: ${upErr.message}`);
   }
 
-  const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(key);
-  return {
-    publicUrl: pub.publicUrl,
-    fromCache: false,
-    charactersGenerated: text.length,
-  };
+  const url = await signedUrl(sb, key);
+  return { publicUrl: url, fromCache: false, charactersGenerated: text.length };
+}
+
+// 1-hour signed URL — Meta downloads the audio within seconds of receiving
+// the send-message API call, so any short expiry works. The bucket stays
+// private so no random scraper can enumerate cached phrases.
+async function signedUrl(
+  sb: ReturnType<typeof getAdminClient>,
+  path: string,
+): Promise<string> {
+  const { data, error } = await sb.storage
+    .from(BUCKET)
+    .createSignedUrl(path, 60 * 60);
+  if (error || !data) {
+    throw new Error(`signedUrl failed: ${error?.message ?? "no data"}`);
+  }
+  return data.signedUrl;
 }
