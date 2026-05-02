@@ -77,7 +77,7 @@ export async function chiaTextTurn(args: {
       ...args.recentMessages.slice(-20),
       { role: "user", content: args.userMessage },
     ],
-    { temperature: 0.8, max_tokens: 400 },
+    { temperature: 0.85, max_tokens: 500 },
   );
 }
 
@@ -115,7 +115,7 @@ export async function transcribeAudio(
 
 // Pronunciation analysis — given the target phrase the student was
 // attempting and what they actually said, produce Chia's warm correction
-// in 1-2 sentences. Returns: text reply.
+// in 1-2 sentences.
 export async function analysePronunciation(args: {
   targetPhrase: string;
   transcription: string;
@@ -134,7 +134,7 @@ export async function analysePronunciation(args: {
         content: `What I said was: "${args.transcription}"`,
       },
     ],
-    { temperature: 0.7, max_tokens: 200 },
+    { temperature: 0.75, max_tokens: 200 },
   );
 }
 

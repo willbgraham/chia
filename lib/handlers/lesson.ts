@@ -159,12 +159,17 @@ async function formatLesson(
     })
     .join("\n");
 
+  const filledSystem = systemPrompt
+    .replace("[MEMORY_JSON]", "{}")
+    .replace("[STATE]", "active_structured_lesson")
+    .replace("[LAST_20_MESSAGES]", "(none)");
+
   const result = await chatCompletion(
     [
-      { role: "system", content: systemPrompt.replace("[MEMORY_JSON]", "{}").replace("[STATE]", "active_structured_lesson").replace("[LAST_20_MESSAGES]", "(none)") },
+      { role: "system", content: filledSystem },
       {
         role: "user",
-        content: `Format this lesson as a short WhatsApp message in your voice. Don't list every item — pick the most important 5–8, group naturally, use line breaks generously. End with offering to read the first phrase aloud (with 🎵). Keep it under 700 chars.
+        content: `Format this lesson as a short WhatsApp message in your voice. Don't list every item — pick the most important 5–8, group naturally, use line breaks generously. End by offering to say the first phrase aloud using EXACTLY this pattern: Want to hear me say "[phrase]"? 🎵 — keep the whole message under 700 chars.
 
 LESSON: ${lesson.title}
 ${lesson.content.introduction}
@@ -175,7 +180,7 @@ ${itemsSummary}
 SUMMARY: ${lesson.content.summary}`,
       },
     ],
-    { temperature: 0.7, max_tokens: 500 },
+    { temperature: 0.85, max_tokens: 500 },
   );
   return result.trim();
 }

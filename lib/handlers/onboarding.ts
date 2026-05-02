@@ -8,7 +8,8 @@ import type {
   LessonMode,
   ReminderPreference,
 } from "@/types";
-import { sendText } from "@/lib/messaging/whatsapp";
+import { sendText, sendAudio } from "@/lib/messaging/whatsapp";
+import { getOrCreateAudio } from "@/lib/messaging/audio-cache";
 import { patchMemory, getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 
@@ -42,7 +43,22 @@ export async function handleOnboarding(args: OnboardingArgs): Promise<void> {
 }
 
 // ── Step 1: send the opener ─────────────────────────────────────────────────
+// First impression matters. We send a short Spanish voice clip first
+// (a "tease" of what Premium voice messages feel like — bypasses the
+// audio quota since this user is brand-new), then the text question.
+const VOICE_INTRO_PHRASE =
+  "Hola, soy Chia. Bienvenido a ChiaChat. Vamos a aprender español juntos.";
+
 async function sendStep1(args: OnboardingArgs): Promise<void> {
+  // Audio intro — best-effort. If TTS fails or the voice ID isn't set,
+  // we still proceed with the text so onboarding never gets stuck.
+  try {
+    const { publicUrl } = await getOrCreateAudio(VOICE_INTRO_PHRASE);
+    await sendAudio(args.whatsappNumber, publicUrl);
+  } catch (err) {
+    console.error("[onboarding] voice intro failed:", err);
+  }
+
   await sendText(
     args.whatsappNumber,
     "¡Hola! Soy Chia 🌿\nI'm going to teach you Spanish — and I promise it's going to feel nothing like school.\nWhat's your name?",
