@@ -121,14 +121,13 @@ export async function handleVoiceNote(args: VoiceNoteArgs): Promise<void> {
     },
   } as Partial<MemoryJson>);
 
-  const nextState: ConversationStateName =
-    memory.lesson_mode === "free"
-      ? "active_free_chat"
-      : memory.curriculum_position?.current_lesson
-        ? "active_structured_lesson"
-        : "active_free_chat";
+  // After a voice-note exchange, drop into free chat so follow-ups
+  // ("can you say it slower?", "what does that mean again?") get handled
+  // conversationally instead of re-triggering the lesson handler.
+  // Re-entering structured lesson mode is a separate, explicit user action
+  // (asking "next lesson" or similar — handled via free-chat for now).
   await updateState(args.userId, {
-    state: nextState,
+    state: "active_free_chat",
     pending_phrase: null,
     pending_audio_url: null,
   });
