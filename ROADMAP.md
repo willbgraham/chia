@@ -97,6 +97,32 @@ Corporate language training as a separate product surface:
 New tables: `organisations`, `org_memberships`,
 `organisation_teachers` (custom branded teachers per org).
 
+## PDF documents in WhatsApp
+
+Chia sends PDF cheat sheets, conjugation tables, vocabulary lists,
+and personalised study notes — they live in the user's WhatsApp media
+gallery and can be re-opened anytime. Same architecture as audio
+offers: Chia ends a message with `Want me to send you a PDF of "[topic]"? 📄`,
+state goes to `awaiting_pdf_confirm`, on yes we generate + send.
+
+Tech choice: `pdf-lib` (pure TypeScript, works in Vercel serverless).
+
+Use cases, in priority order:
+- **Verb conjugation tables** — student references forever
+- **Vocabulary cheat sheets** — themed (cooking, travel, dating, etc.)
+- **Grammar reference cards** — ser vs estar, gender rules, etc.
+- **Personalised study notes** — auto-generated from chat history
+  ("here's what we covered this week"). Requires memory + GPT to
+  curate, biggest engineering effort but highest perceived value.
+- **Lesson workbooks** — downloadable practice exercises
+
+Required: new state `awaiting_pdf_confirm`, new handler `pdf-confirm.ts`,
+PDF cache (similar pattern to `audio-cache.ts`), `sendDocument` in the
+Meta WhatsApp client.
+
+Pairs naturally with the structured lessons revamp — once the curriculum
+is more fleshed out, every formal lesson can have an associated PDF.
+
 ## Additional lesson content
 
 - Full A1 → C2 curriculum for each language (~400 lessons each)
@@ -104,3 +130,4 @@ New tables: `organisations`, `org_memberships`,
 - Idioms and slang (separate "topic" tags so structured mode can
   optionally pull them in)
 - Business Spanish / French / German tracks
+- Each formal lesson ships with a downloadable PDF (see above)
