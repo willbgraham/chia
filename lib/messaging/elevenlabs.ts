@@ -44,11 +44,19 @@ export async function textToSpeech(
     },
     body: JSON.stringify({
       text,
-      model_id: options.modelId ?? "eleven_multilingual_v2",
+      // eleven_multilingual_v2 handles Spanish well and is reliable.
+      // eleven_v3 is more expressive when available — switch via env.
+      model_id:
+        options.modelId ?? process.env.ELEVENLABS_MODEL ?? "eleven_multilingual_v2",
       voice_settings: {
-        stability: options.stability ?? 0.5,
-        similarity_boost: options.similarity ?? 0.75,
-        style: options.style ?? 0,
+        // Lower stability → more emotional variation per generation.
+        // 0.35 is the sweet spot for warmth without sounding inconsistent.
+        stability: options.stability ?? 0.35,
+        // Higher similarity → stays closer to the original voice's identity.
+        similarity_boost: options.similarity ?? 0.8,
+        // Style boosts exaggeration of voice character. 0.55 gives noticeable
+        // personality without making her sound theatrical.
+        style: options.style ?? 0.55,
         use_speaker_boost: options.useSpeakerBoost ?? true,
       },
     }),

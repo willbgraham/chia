@@ -10,10 +10,15 @@ import { textToSpeech } from "@/lib/messaging/elevenlabs";
 const BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "chiachat-media";
 const CACHE_PREFIX = "audio/cache";
 
+// Bump this any time we change voice settings (stability/style/model/etc).
+// Existing cached MP3s become orphaned; new generations pick up the new
+// settings. Storage cleanup is manual via Supabase dashboard.
+const CACHE_VERSION = "v2";
+
 function cacheKey(text: string, voiceId: string): string {
   const hash = crypto
     .createHash("sha256")
-    .update(`${voiceId}::${text.trim().toLowerCase()}`)
+    .update(`${CACHE_VERSION}::${voiceId}::${text.trim().toLowerCase()}`)
     .digest("hex")
     .slice(0, 16);
   return `${CACHE_PREFIX}/${voiceId}/${hash}.mp3`;
