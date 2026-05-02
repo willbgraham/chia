@@ -43,25 +43,39 @@ export async function handleOnboarding(args: OnboardingArgs): Promise<void> {
 }
 
 // ── Step 1: send the opener ─────────────────────────────────────────────────
-// First impression matters. We send a short Spanish voice clip first
-// (a "tease" of what Premium voice messages feel like — bypasses the
-// audio quota since this user is brand-new), then the text question.
+// First impression matters. We send a short Spanish voice clip (a "tease"
+// of what Premium voice messages feel like — bypasses the audio quota
+// since this user is brand-new), then a text that translates what Chia
+// just said and chains into the question. Voice + text are intentionally
+// linked so the student understands what they just heard.
 const VOICE_INTRO_PHRASE =
   "Hola, soy Chia. Bienvenido a ChiaChat. Vamos a aprender español juntos.";
 
+const TEXT_AFTER_VOICE = `That was me saying:
+"Hi, I'm Chia. Welcome to ChiaChat. Let's learn Spanish together." 🌿
+
+I'm going to teach you — and I promise it'll feel nothing like school. What's your name?`;
+
+const TEXT_FALLBACK_NO_VOICE = `¡Hola! Soy Chia 🌿
+I'm going to teach you Spanish — I promise it'll feel nothing like school.
+What's your name?`;
+
 async function sendStep1(args: OnboardingArgs): Promise<void> {
-  // Audio intro — best-effort. If TTS fails or the voice ID isn't set,
-  // we still proceed with the text so onboarding never gets stuck.
+  // Audio intro — best-effort. If it succeeds, the follow-up text
+  // translates it. If it fails, we send a different text that doesn't
+  // reference a voice message that never arrived.
+  let voiceSent = false;
   try {
     const { publicUrl } = await getOrCreateAudio(VOICE_INTRO_PHRASE);
-    await sendAudio(args.whatsappNumber, publicUrl);
+    const result = await sendAudio(args.whatsappNumber, publicUrl);
+    voiceSent = !result.error;
   } catch (err) {
     console.error("[onboarding] voice intro failed:", err);
   }
 
   await sendText(
     args.whatsappNumber,
-    "¡Hola! Soy Chia 🌿\nI'm going to teach you Spanish — and I promise it's going to feel nothing like school.\nWhat's your name?",
+    voiceSent ? TEXT_AFTER_VOICE : TEXT_FALLBACK_NO_VOICE,
   );
   await updateState(args.userId, { state: "onboarding_step_2" });
 }
