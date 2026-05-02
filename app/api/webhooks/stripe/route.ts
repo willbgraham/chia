@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
         break;
       case "invoice.paid":
+      case "invoice_payment.paid": // newer Stripe event variant
         await handleInvoicePaid(event.data.object as Stripe.Invoice);
         break;
       case "customer.subscription.deleted":
