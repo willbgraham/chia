@@ -3,7 +3,13 @@
 
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const TRANSCRIPTION_ENDPOINT = "https://api.openai.com/v1/audio/transcriptions";
+// Default for utility tasks (memory extraction, phrase classifier).
 const DEFAULT_MODEL = "gpt-4o-mini";
+// Model used for personality-heavy turns where warmth matters: free chat,
+// lesson formatting, voice-note pronunciation analysis. Override via
+// CHIA_PERSONALITY_MODEL — keep on gpt-4o full for now.
+const PERSONALITY_MODEL =
+  process.env.CHIA_PERSONALITY_MODEL ?? "gpt-4o";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -77,7 +83,7 @@ export async function chiaTextTurn(args: {
       ...args.recentMessages.slice(-20),
       { role: "user", content: args.userMessage },
     ],
-    { temperature: 0.85, max_tokens: 500 },
+    { model: PERSONALITY_MODEL, temperature: 0.85, max_tokens: 500 },
   );
 }
 
@@ -134,7 +140,7 @@ export async function analysePronunciation(args: {
         content: `What I said was: "${args.transcription}"`,
       },
     ],
-    { temperature: 0.75, max_tokens: 200 },
+    { model: PERSONALITY_MODEL, temperature: 0.75, max_tokens: 200 },
   );
 }
 

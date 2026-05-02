@@ -180,7 +180,11 @@ ${itemsSummary}
 SUMMARY: ${lesson.content.summary}`,
       },
     ],
-    { temperature: 0.85, max_tokens: 500 },
+    {
+      model: process.env.CHIA_PERSONALITY_MODEL ?? "gpt-4o",
+      temperature: 0.85,
+      max_tokens: 500,
+    },
   );
   return result.trim();
 }
