@@ -42,7 +42,10 @@ export async function POST(request: NextRequest) {
   // doesn't retry indefinitely. Real failures show up in Vercel logs as
   // [stripe webhook] errors and we manually flip the user if needed.
   try {
-    switch (event.type) {
+    // Cast to string for matching — Stripe's SDK union doesn't include
+    // newer event names like invoice_payment.paid yet.
+    const eventType = event.type as string;
+    switch (eventType) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded":
         await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
