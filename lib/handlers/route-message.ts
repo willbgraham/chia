@@ -9,7 +9,11 @@ import { handleFreeChat } from "@/lib/handlers/free-chat";
 import { handleLesson } from "@/lib/handlers/lesson";
 import { handleAudioConfirm } from "@/lib/handlers/audio-confirm";
 import { handleVoiceNote } from "@/lib/handlers/voice-note";
-import { getOrCreateState, touchLastMessage } from "@/lib/handlers/state";
+import {
+  getOrCreateState,
+  touchLastMessage,
+  updateState as updateStateInline,
+} from "@/lib/handlers/state";
 import type { User, ConversationStateName } from "@/types";
 
 // Shape of the parsed inbound message we pass between handlers.
@@ -119,12 +123,14 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
       return;
 
     case "awaiting_voice_note":
-      // Student sent text instead of a voice note. Handle as free chat
-      // gracefully and clear the pending state.
-      await sendText(
-        msg.whatsappNumber,
-        "I was waiting for a voice note 🎵 — but text is fine too. Let me check what you said...",
-      );
+      // Student sent text instead of a voice note. Drop the preamble —
+      // it was firing on every text turn while stuck in this state.
+      // Just reset to free chat and let Chia answer normally.
+      await updateStateInline(user.id, {
+        state: "active_free_chat",
+        pending_phrase: null,
+        pending_audio_url: null,
+      });
       await handleFreeChat({
         userId: user.id,
         whatsappNumber: msg.whatsappNumber,
