@@ -1,41 +1,37 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
+import { handleInbound, type InboundMessage } from "@/lib/handlers/route-message";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Allow up to 60s for the full inbound processing chain (Supabase reads,
+// GPT call, Meta send, audio gen if applicable). Vercel's hobby plan
+// caps at 10s; production needs Pro for this.
+export const maxDuration = 60;
 
-// Bridge between Meta WhatsApp Cloud API and Make.com.
+// Inbound webhook from Meta WhatsApp Cloud API.
 //
-// GET  — handles Meta's webhook verification handshake. Meta calls this
-//        once during webhook setup with `?hub.mode=subscribe&hub.verify_token=
-//        <token>&hub.challenge=<random>`. We compare the token to our stored
-//        secret and echo the challenge if it matches.
-//
-// POST — every inbound user message lands here from Meta. We:
-//        1. Verify the X-Hub-Signature-256 HMAC so we know it's really Meta.
-//        2. Forward the raw payload to the Make scenario 1 webhook URL.
-//        3. Return 200 to Meta immediately (Meta retries on non-2xx, and we
-//           don't want to gate Meta's queue on Make's processing time).
+// GET  — handshake on initial webhook setup. Echoes hub.challenge if the
+//        verify token matches.
+// POST — every inbound user message. We HMAC-verify it's really Meta,
+//        parse the payload, and invoke the conversation router.
 
 export async function GET(request: NextRequest) {
   const expected = process.env.META_WHATSAPP_VERIFY_TOKEN;
   if (!expected) {
     return new NextResponse("verify token not configured", { status: 500 });
   }
-
   const params = request.nextUrl.searchParams;
   const mode = params.get("hub.mode");
   const token = params.get("hub.verify_token");
   const challenge = params.get("hub.challenge");
 
   if (mode === "subscribe" && token === expected && challenge) {
-    // Meta wants the challenge echoed back as plain text with 200.
     return new NextResponse(challenge, {
       status: 200,
       headers: { "Content-Type": "text/plain" },
     });
   }
-
   return new NextResponse("verification failed", { status: 403 });
 }
 
@@ -51,65 +47,102 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-hub-signature-256");
   const rawBody = await request.text();
 
-  // HMAC verification — protects against forged Meta webhooks.
   if (!signature || !verifyMetaSignature(signature, rawBody, appSecret)) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
-  // Forward to Make scenario 1. We await so Vercel's serverless runtime
-  // doesn't kill the lambda before the forward completes. Make's webhook
-  // responds in <1s, well within Meta's ~20s timeout window.
-  const makeUrl = process.env.MAKE_WHATSAPP_WEBHOOK_URL;
-  if (makeUrl) {
-    try {
-      await forwardToMake(makeUrl, rawBody, request.headers);
-    } catch (err) {
-      // Log but still return 200 to Meta — Meta retrying won't help if
-      // Make is broken, and we don't want to drop the message.
-      console.error("[whatsapp passthrough] forward to Make failed:", err);
-    }
-  } else {
-    console.warn(
-      "[whatsapp passthrough] MAKE_WHATSAPP_WEBHOOK_URL not set — payload received but not forwarded",
-    );
+  // Parse Meta's nested payload, route each message inside it.
+  let payload: MetaWebhookPayload;
+  try {
+    payload = JSON.parse(rawBody) as MetaWebhookPayload;
+  } catch {
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  return NextResponse.json({ received: true });
+  // Extract every inbound message from the payload (Meta batches them by
+  // entry → changes → value → messages[]). For ChiaChat at typical scale,
+  // there's one message per webhook, but the spec supports multiple.
+  const messages = extractMessages(payload);
+
+  // Process each message. Don't fail Meta on a single processing error —
+  // log and move on so Meta doesn't retry the whole batch.
+  await Promise.all(
+    messages.map(async (msg) => {
+      try {
+        await handleInbound(msg);
+      } catch (err) {
+        console.error("[whatsapp inbound] handler error:", err, "msg:", msg);
+      }
+    }),
+  );
+
+  return NextResponse.json({ received: messages.length });
 }
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function verifyMetaSignature(
   header: string,
   rawBody: string,
   appSecret: string,
 ): boolean {
-  // header looks like: "sha256=abcd1234..."
   const expected = `sha256=${crypto
     .createHmac("sha256", appSecret)
     .update(rawBody)
     .digest("hex")}`;
-
-  // Constant-time compare to prevent timing attacks.
   const a = Buffer.from(header);
   const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }
 
-async function forwardToMake(
-  url: string,
-  rawBody: string,
-  incomingHeaders: Headers,
-) {
-  // Forward as POST with the same content type. We deliberately don't
-  // forward the X-Hub-Signature header — Make doesn't need it (we already
-  // verified it), and downstream handlers won't have access to the app
-  // secret to re-verify.
-  await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type":
-        incomingHeaders.get("content-type") ?? "application/json",
-    },
-    body: rawBody,
-  });
+interface MetaMessage {
+  from: string;
+  type: string;
+  text?: { body: string };
+  audio?: { id: string; mime_type?: string };
+  image?: { id: string };
+}
+
+interface MetaWebhookPayload {
+  object: string;
+  entry?: Array<{
+    id?: string;
+    changes?: Array<{
+      value?: {
+        messages?: MetaMessage[];
+      };
+      field?: string;
+    }>;
+  }>;
+}
+
+function extractMessages(payload: MetaWebhookPayload): InboundMessage[] {
+  const out: InboundMessage[] = [];
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const m of change.value?.messages ?? []) {
+        // Meta sends 'from' without leading +, we store with +.
+        const whatsappNumber = m.from.startsWith("+") ? m.from : `+${m.from}`;
+        if (m.type === "text" && m.text) {
+          out.push({
+            whatsappNumber,
+            type: "text",
+            textBody: m.text.body,
+          });
+        } else if (m.type === "audio" && m.audio) {
+          out.push({
+            whatsappNumber,
+            type: "audio",
+            audioMediaId: m.audio.id,
+          });
+        } else if (m.type === "image" && m.image) {
+          out.push({ whatsappNumber, type: "image" });
+        } else {
+          out.push({ whatsappNumber, type: "other" });
+        }
+      }
+    }
+  }
+  return out;
 }

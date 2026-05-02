@@ -92,7 +92,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (error) throw new Error(`User update failed: ${error.message}`);
   if (!user) throw new Error(`No user with whatsapp_number ${whatsapp}`);
 
-  await relayReactivationToMake(whatsapp);
+  await sendReactivationMessage(whatsapp);
 }
 
 // Renew billing period each time a subscription invoice is paid so
@@ -130,19 +130,18 @@ async function handleSubscriptionCancelled(sub: Stripe.Subscription) {
     throw new Error(`Subscription cancellation update failed: ${error.message}`);
 }
 
-async function relayReactivationToMake(whatsappNumber: string) {
-  const url = process.env.MAKE_STRIPE_REACTIVATION_WEBHOOK_URL;
-  if (!url) return;
+// After a successful upgrade, send Chia's reactivation message directly
+// via Meta WhatsApp Cloud API. Best-effort — the upgrade itself already
+// succeeded, so a failure here just means the user doesn't get the
+// celebratory message.
+async function sendReactivationMessage(whatsappNumber: string) {
   try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        whatsapp_number: whatsappNumber,
-        event: "stripe.checkout.completed",
-      }),
-    });
-  } catch {
-    // Make webhook is best-effort; Stripe upgrade itself already succeeded.
+    const { sendText } = await import("@/lib/messaging/whatsapp");
+    await sendText(
+      whatsappNumber,
+      "¡Estás de vuelta! 🎉 Now we can talk as much as we want — including voice practice 🎵 Where were we...? 😊",
+    );
+  } catch (err) {
+    console.error("[stripe webhook] reactivation send failed:", err);
   }
 }
