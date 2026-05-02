@@ -72,34 +72,7 @@ export function UserTable({ users }: UserTableProps) {
                 {isOpen ? (
                   <tr className="border-t border-border bg-bg">
                     <td colSpan={6} className="px-4 py-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-xs uppercase text-muted mb-1">
-                            memory_json
-                          </div>
-                          <pre className="text-xs bg-surface border border-border rounded p-2 overflow-x-auto scrollbar-thin">
-                            {JSON.stringify(u.memory_json, null, 2)}
-                          </pre>
-                        </div>
-                        <div className="space-y-1.5 text-xs">
-                          <div>
-                            <span className="text-muted">id: </span>
-                            <span className="font-mono text-text">{u.id}</span>
-                          </div>
-                          <div>
-                            <span className="text-muted">stripe customer: </span>
-                            <span className="font-mono text-text">
-                              {u.stripe_customer_id ?? "—"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-muted">billing start: </span>
-                            <span className="text-text">
-                              {formatDate(u.billing_period_start)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                      <UserDetailPanel user={u} />
                     </td>
                   </tr>
                 ) : null}
@@ -108,6 +81,93 @@ export function UserTable({ users }: UserTableProps) {
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+interface RecentMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+function UserDetailPanel({ user }: { user: User }) {
+  const memory = user.memory_json as {
+    _recent?: RecentMessage[];
+    name?: string;
+    [key: string]: unknown;
+  };
+  const recent = Array.isArray(memory?._recent) ? memory._recent : [];
+
+  // Build a "memory minus _recent" object for the JSON column so the
+  // raw JSON view doesn't drown out the high-signal facts (name, level,
+  // language progress, etc.) with the message buffer.
+  const memorySansRecent = { ...memory };
+  delete memorySansRecent._recent;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="text-xs uppercase text-muted">
+            Recent conversation
+            <span className="ml-2 text-muted/70">
+              ({recent.length} {recent.length === 1 ? "turn" : "turns"})
+            </span>
+          </div>
+        </div>
+        {recent.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted">
+            No recent messages buffered.
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin pr-1">
+            {recent.map((m, i) => (
+              <div
+                key={i}
+                className={
+                  m.role === "user"
+                    ? "rounded-md bg-surface border border-border p-2 text-sm"
+                    : "rounded-md bg-accentMuted/40 border border-accent/20 p-2 text-sm"
+                }
+              >
+                <div className="text-[10px] uppercase tracking-wide text-muted mb-0.5">
+                  {m.role === "user"
+                    ? `${memory?.name ?? "Student"}`
+                    : "Chia"}
+                </div>
+                <div className="whitespace-pre-wrap text-text">
+                  {m.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <div className="text-xs uppercase text-muted">memory_json</div>
+        <pre className="text-xs bg-surface border border-border rounded p-2 overflow-x-auto scrollbar-thin max-h-96">
+          {JSON.stringify(memorySansRecent, null, 2)}
+        </pre>
+        <div className="space-y-1 text-xs pt-2 border-t border-border">
+          <div>
+            <span className="text-muted">id: </span>
+            <span className="font-mono text-text">{user.id}</span>
+          </div>
+          <div>
+            <span className="text-muted">stripe customer: </span>
+            <span className="font-mono text-text">
+              {user.stripe_customer_id ?? "—"}
+            </span>
+          </div>
+          <div>
+            <span className="text-muted">billing start: </span>
+            <span className="text-text">
+              {formatDate(user.billing_period_start)}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
