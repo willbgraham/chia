@@ -12,6 +12,7 @@ interface FreeChatArgs {
   userId: string;
   whatsappNumber: string;
   teacherId: string | null;
+  userPlan: "free" | "premium";
   userMessage: string;
 }
 
@@ -32,6 +33,12 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   await sendText(args.whatsappNumber, reply);
   await appendMessage(args.userId, "user", args.userMessage);
   await appendMessage(args.userId, "assistant", reply);
+
+  // Detect upgrade intent — if the student is on free and asks to
+  // upgrade, send them the Stripe payment link as a follow-up message.
+  if (args.userPlan === "free" && wantsUpgrade(args.userMessage)) {
+    await sendUpgradeLink(args.whatsappNumber);
+  }
 
   // Always run the phrase extractor — it returns null if Chia didn't
   // actually offer audio. Cheaper than maintaining a phrasing heuristic
@@ -62,6 +69,43 @@ async function extractTargetPhrase(reply: string): Promise<string | null> {
   const phrase = out.trim().replace(/^["'`]|["'`]$/g, "");
   if (phrase.length === 0 || phrase.length > 200) return null;
   return phrase;
+}
+
+// Match common ways students ask to upgrade. Conservative — false negatives
+// (Chia just keeps chatting) are fine; false positives (link sent unnecessarily)
+// are not.
+function wantsUpgrade(message: string): boolean {
+  const t = message.toLowerCase();
+  const triggers = [
+    "upgrade",
+    "premium",
+    "subscribe",
+    "subscription",
+    "pay for",
+    "go pro",
+    "pricing",
+    "how much",
+    "i want voice",
+    "unlock voice",
+    "want premium",
+  ];
+  return triggers.some((kw) => t.includes(kw));
+}
+
+async function sendUpgradeLink(whatsappNumber: string): Promise<void> {
+  const link = process.env.STRIPE_PREMIUM_PAYMENT_LINK;
+  if (!link) {
+    await sendText(
+      whatsappNumber,
+      "Premium isn't quite set up on my side yet 🌿 — give me a minute and try again?",
+    );
+    return;
+  }
+  const url = `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${encodeURIComponent(whatsappNumber)}`;
+  await sendText(
+    whatsappNumber,
+    `Premium gets you my voice and pronunciation practice — €25/month, cancel anytime 🌿\n\n${url}\n\nOnce you're done, message me back and we'll get going.`,
+  );
 }
 
 async function getTeacherSystemPrompt(teacherId: string | null): Promise<string> {

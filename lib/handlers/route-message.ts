@@ -93,6 +93,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userId: user.id,
         whatsappNumber: msg.whatsappNumber,
         teacherId: user.teacher_id,
+        userPlan: user.plan,
         userMessage: msg.textBody,
       });
       return;
@@ -128,6 +129,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userId: user.id,
         whatsappNumber: msg.whatsappNumber,
         teacherId: user.teacher_id,
+        userPlan: user.plan,
         userMessage: msg.textBody,
       });
       return;
@@ -138,6 +140,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userId: user.id,
         whatsappNumber: msg.whatsappNumber,
         teacherId: user.teacher_id,
+        userPlan: user.plan,
         userMessage: msg.textBody,
       });
   }
