@@ -38,6 +38,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Catch + log all event-handler errors but still return 200 so Stripe
+  // doesn't retry indefinitely. Real failures show up in Vercel logs as
+  // [stripe webhook] errors and we manually flip the user if needed.
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -57,7 +60,10 @@ export async function POST(request: NextRequest) {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error(
+      `[stripe webhook] event ${event.type} (${event.id}) failed:`,
+      msg,
+    );
   }
 
   return NextResponse.json({ received: true });
@@ -70,9 +76,14 @@ export async function POST(request: NextRequest) {
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const ref = session.client_reference_id?.trim();
   if (!ref) {
-    throw new Error(
-      "checkout.session.completed missing client_reference_id",
+    // Some payment links won't carry a reference (e.g. user opened the
+    // raw link without the query param). Log and skip rather than 500;
+    // we'll match the customer up later via invoice.paid if possible.
+    console.warn(
+      "[stripe webhook] checkout.session.completed without client_reference_id — skipping",
+      { sessionId: session.id, customer: session.customer },
     );
+    return;
   }
   const customerId =
     typeof session.customer === "string"
@@ -144,24 +155,45 @@ async function advancePostUpgrade(userId: string): Promise<void> {
 }
 
 // Renew billing period each time a subscription invoice is paid so
-// audio_usage caps reset monthly.
+// audio_usage caps reset monthly. Note: only updates if the user
+// already has stripe_customer_id set (from a prior checkout.session.completed).
+// If no row matches, we silently skip — this is normal for events that
+// arrive before checkout.session.completed (Stripe doesn't guarantee order).
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
   const customerId =
     typeof invoice.customer === "string"
       ? invoice.customer
       : invoice.customer?.id ?? null;
-  if (!customerId) return;
+  if (!customerId) {
+    console.warn("[stripe webhook] invoice.paid without customer id — skipping", {
+      invoiceId: invoice.id,
+    });
+    return;
+  }
 
   const sb = getAdminClient();
-  const { error } = await sb
+  const { data, error } = await sb
     .from("users")
     .update({
       plan: "premium",
       billing_period_start: new Date().toISOString(),
     })
-    .eq("stripe_customer_id", customerId);
+    .eq("stripe_customer_id", customerId)
+    .select("id");
 
-  if (error) throw new Error(`Invoice paid update failed: ${error.message}`);
+  if (error) {
+    console.error("[stripe webhook] invoice.paid update error:", error.message);
+    return;
+  }
+  if (!data || data.length === 0) {
+    // No user row has this customer id yet. Likely the matching
+    // checkout.session.completed hasn't been processed yet (or had
+    // no client_reference_id). Log so we know to manually reconcile.
+    console.warn(
+      "[stripe webhook] invoice.paid: no user with stripe_customer_id — needs manual reconciliation",
+      { customerId, invoiceId: invoice.id },
+    );
+  }
 }
 
 async function handleSubscriptionCancelled(sub: Stripe.Subscription) {
