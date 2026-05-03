@@ -52,7 +52,7 @@ export default async function Home() {
       {/* ─── Header ─────────────────────────────────────────────── */}
       <header className="max-w-6xl mx-auto px-6 pt-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🌿</span>
+          <BrandMark size={32} src={chia?.profile_image_url ?? null} />
           <span className="font-semibold tracking-tight">ChiaChat</span>
         </div>
         <a
@@ -214,7 +214,7 @@ export default async function Home() {
       <footer className="border-t border-border">
         <div className="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-sm text-muted">
           <div className="flex items-center gap-2">
-            <span className="text-lg">🌿</span>
+            <BrandMark size={28} src={chia?.profile_image_url ?? null} />
             <span>ChiaChat — Made in Valencia</span>
           </div>
           <div className="flex items-center gap-6">
@@ -304,6 +304,32 @@ function PricingCard({
         {cta}
       </a>
     </div>
+  );
+}
+
+// Small circular avatar used in the header + footer in place of the
+// old leaf emoji. Falls back to the leaf if no photo is set so the
+// brand mark never breaks even before an admin uploads.
+function BrandMark({ src, size }: { src: string | null; size: number }) {
+  if (!src) {
+    return (
+      <span style={{ fontSize: Math.round(size * 0.7), lineHeight: 1 }}>
+        🌿
+      </span>
+    );
+  }
+  return (
+    <span
+      className="rounded-full overflow-hidden bg-surface border border-border inline-block shrink-0"
+      style={{ width: size, height: size }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Chia"
+        className="h-full w-full object-cover"
+      />
+    </span>
   );
 }
 
