@@ -41,6 +41,10 @@ create table if not exists users (
   reminder_time text,
   billing_period_start timestamp with time zone,
   stripe_customer_id text,
+  -- Daily text-message throttle (free=50/day, premium=500/day soft cap).
+  -- Counter resets lazily when messages_today_date != current_date.
+  messages_today_count int not null default 0,
+  messages_today_date date,
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()
 );

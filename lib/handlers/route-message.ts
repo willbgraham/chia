@@ -14,6 +14,7 @@ import {
   touchLastMessage,
   updateState as updateStateInline,
 } from "@/lib/handlers/state";
+import { checkAndIncrementDailyTextCount } from "@/lib/handlers/usage";
 import type { User, ConversationStateName } from "@/types";
 
 // Shape of the parsed inbound message we pass between handlers.
@@ -72,6 +73,19 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
       "I work best with text and voice notes 🌿 What would you like to learn?",
     );
     return;
+  }
+
+  // Daily text-message throttle. Bounds OpenAI spend per user — free
+  // = FREE_DAILY_TEXT_LIMIT (default 50), premium = PREMIUM_DAILY_TEXT_LIMIT
+  // (default 500 soft cap). Onboarding is exempt so a new student can
+  // always finish setup; once they hit free chat, every text counts.
+  const isOnboarding = state.state.startsWith("onboarding_step_");
+  if (!isOnboarding) {
+    const throttle = await checkAndIncrementDailyTextCount(user.id, user.plan);
+    if (!throttle.allowed) {
+      await sendDailyCapMessage(msg.whatsappNumber, user.plan, user.id);
+      return;
+    }
   }
 
   // Text routing:
@@ -166,6 +180,29 @@ async function findUser(whatsappNumber: string): Promise<User | null> {
     .eq("whatsapp_number", whatsappNumber)
     .maybeSingle();
   return (data as User | null) ?? null;
+}
+
+async function sendDailyCapMessage(
+  whatsappNumber: string,
+  plan: User["plan"],
+  userId: string,
+): Promise<void> {
+  if (plan === "premium") {
+    // Soft cap — friendly notice, no upgrade pitch (they already paid).
+    await sendText(
+      whatsappNumber,
+      "Hemos hablado mucho hoy 🌿 (We've talked a lot today!) Let's pick this back up tomorrow — descansa un poco. Hablamos mañana.",
+    );
+    return;
+  }
+  const link = process.env.STRIPE_PREMIUM_PAYMENT_LINK;
+  const upgradeLine = link
+    ? `\n\nIf you'd like to keep going today, Premium unlocks more chat + my voice — €25/month, cancel anytime:\n${link}${link.includes("?") ? "&" : "?"}client_reference_id=${userId}`
+    : "";
+  await sendText(
+    whatsappNumber,
+    `Hemos hablado mucho hoy 🌿 (We've talked a lot today!) The free plan is capped daily so we both stay sane. Let's continue tomorrow — hablamos mañana.${upgradeLine}`,
+  );
 }
 
 async function createNewUser(whatsappNumber: string): Promise<User> {

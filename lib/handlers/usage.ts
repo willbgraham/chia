@@ -1,5 +1,7 @@
 // Audio usage metering. Counts characters per user per billing period
 // against their plan limit (free=0, premium=50000).
+// Also: daily text-message throttle (free=50/day, premium=500/day soft cap)
+// to bound OpenAI spend per user.
 
 import { getAdminClient } from "@/lib/supabase/admin";
 import { AUDIO_LIMITS, type AudioSource, type AudioDirection, type Plan } from "@/types";
@@ -59,4 +61,84 @@ function monthStartIso(): string {
   d.setUTCDate(1);
   d.setUTCHours(0, 0, 0, 0);
   return d.toISOString();
+}
+
+// ── Daily text-message throttle ────────────────────────────────────────────
+// Soft cap on inbound text messages per UTC day so a runaway user can't
+// burn through OpenAI credits. Counter lives on the users row
+// (messages_today_count / messages_today_date) and resets lazily when the
+// stored date != today. Increments before handler dispatch.
+
+function dailyTextLimit(plan: Plan): number {
+  if (plan === "premium") {
+    const v = Number(process.env.PREMIUM_DAILY_TEXT_LIMIT);
+    return Number.isFinite(v) && v > 0 ? v : 500;
+  }
+  const v = Number(process.env.FREE_DAILY_TEXT_LIMIT);
+  return Number.isFinite(v) && v > 0 ? v : 50;
+}
+
+function utcDateString(): string {
+  // YYYY-MM-DD in UTC, matching Postgres `date` casting on current_date.
+  return new Date().toISOString().slice(0, 10);
+}
+
+export interface DailyTextCheck {
+  allowed: boolean;
+  count: number;     // post-increment count (or stored count if blocked)
+  limit: number;
+  justHitLimit: boolean; // true on the exact turn we cross the limit
+}
+
+// Atomic-ish: read row, decide reset/increment, write back. Race conditions
+// across concurrent inbound webhooks for the same user are tolerable here —
+// a one-off off-by-one in a soft cap is fine.
+export async function checkAndIncrementDailyTextCount(
+  userId: string,
+  plan: Plan,
+): Promise<DailyTextCheck> {
+  const sb = getAdminClient();
+  const limit = dailyTextLimit(plan);
+  const today = utcDateString();
+
+  const { data, error } = await sb
+    .from("users")
+    .select("messages_today_count, messages_today_date")
+    .eq("id", userId)
+    .single();
+  if (error) {
+    // Fail open — never block messages because of a metering glitch.
+    console.error("[usage] daily-text-throttle read failed:", error.message);
+    return { allowed: true, count: 0, limit, justHitLimit: false };
+  }
+
+  const storedDate = (data?.messages_today_date as string | null) ?? null;
+  const storedCount = Number(data?.messages_today_count ?? 0);
+  const sameDay = storedDate === today;
+  const previous = sameDay ? storedCount : 0;
+
+  if (previous >= limit) {
+    return { allowed: false, count: previous, limit, justHitLimit: false };
+  }
+
+  const next = previous + 1;
+  const { error: upErr } = await sb
+    .from("users")
+    .update({
+      messages_today_count: next,
+      messages_today_date: today,
+    })
+    .eq("id", userId);
+  if (upErr) {
+    console.error("[usage] daily-text-throttle write failed:", upErr.message);
+    // Fail open if the write blew up.
+    return { allowed: true, count: next, limit, justHitLimit: false };
+  }
+
+  return {
+    allowed: true,
+    count: next,
+    limit,
+    justHitLimit: next === limit,
+  };
 }
