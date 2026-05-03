@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { Save, Trash2 } from "lucide-react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { Save, Trash2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Teacher } from "@/types";
 import { Button } from "@/components/ui/Button";
@@ -27,9 +27,54 @@ export function TeacherEditForm({ teacher }: Props) {
     backstory: teacher.backstory ?? "",
     is_active: teacher.is_active,
   });
+  const [profileImage, setProfileImage] = useState<string | null>(
+    teacher.profile_image_url,
+  );
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function onProfilePick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProfileBusy(true);
+    setProfileError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(
+        `/api/admin/teachers/${teacher.id}/profile-image`,
+        { method: "POST", body: fd },
+      );
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? "upload failed");
+      }
+      const j = (await res.json()) as { profile_image_url: string };
+      setProfileImage(j.profile_image_url);
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setProfileBusy(false);
+      e.target.value = "";
+    }
+  }
+
+  async function onProfileClear() {
+    if (!confirm("Remove profile photo?")) return;
+    setProfileBusy(true);
+    try {
+      const res = await fetch(
+        `/api/admin/teachers/${teacher.id}/profile-image`,
+        { method: "DELETE" },
+      );
+      if (res.ok) setProfileImage(null);
+    } finally {
+      setProfileBusy(false);
+    }
+  }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -87,6 +132,61 @@ export function TeacherEditForm({ teacher }: Props) {
 
   return (
     <form onSubmit={onSave} className="space-y-4">
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <div className="text-xs uppercase tracking-wide text-muted mb-2">
+          Profile photo
+        </div>
+        <div className="flex items-start gap-4">
+          <div className="h-24 w-24 rounded-full overflow-hidden bg-bg border border-border flex items-center justify-center text-xs text-muted shrink-0">
+            {profileImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profileImage}
+                alt={teacher.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span>no photo</span>
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <p className="text-xs text-muted">
+              Square JPG/PNG, ~512×512+. Used on the public homepage and any
+              future student-facing surface. (The image library below is
+              separate — it stores Phase 2 contextual photos Chia can send
+              mid-chat.)
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-text cursor-pointer hover:border-muted">
+                <Upload className="h-3.5 w-3.5" />
+                {profileBusy ? "Uploading…" : profileImage ? "Replace" : "Upload"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={onProfilePick}
+                  className="hidden"
+                  disabled={profileBusy}
+                />
+              </label>
+              {profileImage ? (
+                <button
+                  type="button"
+                  onClick={onProfileClear}
+                  disabled={profileBusy}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-3 py-1.5 text-xs text-muted hover:text-danger"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Remove
+                </button>
+              ) : null}
+              {profileError ? (
+                <span className="text-xs text-danger">{profileError}</span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <Field label="Name">
           <Input

@@ -3,15 +3,15 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "ChiaChat Admin",
-    template: "%s — ChiaChat Admin",
+    default: "ChiaChat — Chat your way to fluency in Spanish",
+    template: "%s — ChiaChat",
   },
   description:
-    "ChiaChat is a WhatsApp-native Spanish teacher. Chat with Chia, learn naturally, speak Spanish. No classrooms. No textbooks. Just conversation.",
+    "Learn Spanish on WhatsApp. Chat with Chia, a teacher from Valencia. No classrooms, no textbooks — just conversation.",
   openGraph: {
-    title: "ChiaChat — Chat your way to fluency",
+    title: "ChiaChat — Chat your way to fluency in Spanish",
     description:
-      "ChiaChat is a WhatsApp-native Spanish teacher. Chat with Chia, learn naturally, speak Spanish.",
+      "Learn Spanish on WhatsApp. Chat with Chia, a teacher from Valencia. No classrooms, no textbooks — just conversation.",
     siteName: "ChiaChat",
     type: "website",
   },
