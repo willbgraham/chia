@@ -28,6 +28,7 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
     state: "active_free_chat",
     recentMessages: recent,
     userMessage: args.userMessage,
+    userPlan: args.userPlan,
   });
 
   await sendText(args.whatsappNumber, reply);

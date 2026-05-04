@@ -66,10 +66,12 @@ export async function chiaTextTurn(args: {
   state: string;
   recentMessages: ChatMessage[];
   userMessage: string;
+  userPlan?: "free" | "premium";
 }): Promise<string> {
   const systemPrompt = args.systemPromptTemplate
     .replace("[MEMORY_JSON]", JSON.stringify(args.memoryJson, null, 2))
     .replace("[STATE]", args.state)
+    .replace("[USER_PLAN]", args.userPlan ?? "free")
     .replace(
       "[LAST_20_MESSAGES]",
       args.recentMessages
