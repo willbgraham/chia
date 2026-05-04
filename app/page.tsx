@@ -58,6 +58,8 @@ export default async function Home() {
         <a
           href={WHATSAPP_LINK}
           className="text-sm text-muted hover:text-text"
+          data-track="Lead"
+          data-track-label="header-link"
         >
           Chat with Chia →
         </a>
@@ -86,6 +88,8 @@ export default async function Home() {
             <a
               href={WHATSAPP_LINK}
               className="inline-flex items-center gap-2 rounded-full bg-accent text-bg px-6 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
+              data-track="Lead"
+              data-track-label="hero-cta"
             >
               <WhatsAppGlyph />
               Start chatting on WhatsApp
@@ -224,7 +228,12 @@ export default async function Home() {
             <Link href="/privacy" className="hover:text-text">
               Privacy
             </Link>
-            <a href={WHATSAPP_LINK} className="hover:text-text">
+            <a
+              href={WHATSAPP_LINK}
+              className="hover:text-text"
+              data-track="Lead"
+              data-track-label="footer-link"
+            >
               Chat with Chia
             </a>
           </div>
@@ -265,6 +274,9 @@ function PricingCard({
   href: string;
   primary: boolean;
 }) {
+  // Lead-tracking label keys ad analytics on which pricing tile drove
+  // the click — "free-cta" vs "premium-cta".
+  const trackLabel = primary ? "premium-cta" : "free-cta";
   return (
     <div
       className={
@@ -296,6 +308,8 @@ function PricingCard({
       </ul>
       <a
         href={href}
+        data-track="Lead"
+        data-track-label={trackLabel}
         className={
           "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold transition-opacity " +
           (primary

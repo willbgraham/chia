@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { MetaPixel } from "@/components/MetaPixel";
 
 export const metadata: Metadata = {
   title: {
@@ -28,7 +29,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-bg text-text font-sans">{children}</body>
+      <body className="min-h-screen bg-bg text-text font-sans">
+        <MetaPixel />
+        {children}
+      </body>
     </html>
   );
 }
