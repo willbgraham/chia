@@ -22,7 +22,7 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   const systemPrompt = await getTeacherSystemPrompt(args.teacherId);
   const recent = await getRecentMessages(args.userId);
 
-  const reply = await chiaTextTurn({
+  const rawReply = await chiaTextTurn({
     systemPromptTemplate: systemPrompt,
     memoryJson: memory,
     state: "active_free_chat",
@@ -30,6 +30,17 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
     userMessage: args.userMessage,
     userPlan: args.userPlan,
   });
+
+  // For free users, we belt-and-braces the plan gating: even if GPT
+  // slips and offers audio in spite of the system_prompt instruction,
+  // we strip the offer line server-side before it reaches the student
+  // — and replace it with a soft "type 'upgrade' to hear me" nudge.
+  // This is the fix for the bait-and-switch bug where students said
+  // "yes" to an audio offer and got "voice is Premium" back.
+  const { reply, audioOfferStripped } = applyFreePlanGuard(
+    rawReply,
+    args.userPlan,
+  );
 
   await sendText(args.whatsappNumber, reply);
   await appendMessage(args.userId, "user", args.userMessage);
@@ -41,16 +52,59 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
     await sendUpgradeLink(args.whatsappNumber, args.userId);
   }
 
-  // Always run the phrase extractor — it returns null if Chia didn't
-  // actually offer audio. Cheaper than maintaining a phrasing heuristic
-  // that misses turns of phrase the model uses.
-  const phrase = await extractTargetPhrase(reply);
-  if (phrase) {
-    await updateState(args.userId, {
-      state: "awaiting_audio_confirm",
-      pending_phrase: phrase,
-    });
+  // Audio confirmation flow runs ONLY for premium users. For free users
+  // we already stripped any offer above, so the student never sees one
+  // and the awaiting_audio_confirm state never gets entered.
+  if (args.userPlan === "premium") {
+    const phrase = await extractTargetPhrase(reply);
+    if (phrase) {
+      await updateState(args.userId, {
+        state: "awaiting_audio_confirm",
+        pending_phrase: phrase,
+      });
+    }
   }
+  // (audioOfferStripped intentionally unused — kept for future analytics)
+  void audioOfferStripped;
+}
+
+// Strip the "Want to hear me say ...? 🎵" line for free users and
+// replace it with a single concise nudge. Premium users pass through
+// unchanged. Returns the cleaned reply + whether we actually stripped.
+//
+// We intentionally over-match here — anything that looks like Chia
+// offering audio gets cut, even if the exact phrasing varies (the
+// audio protocol asks for a specific pattern but GPT occasionally
+// improvises). Better to drop a few false positives than to let the
+// bait-and-switch land on a paying-considering free user.
+function applyFreePlanGuard(
+  reply: string,
+  userPlan: "free" | "premium",
+): { reply: string; audioOfferStripped: boolean } {
+  if (userPlan === "premium") {
+    return { reply, audioOfferStripped: false };
+  }
+
+  // Match any line containing "want to hear me say" / "hear it from me"
+  // / similar phrasing, optionally followed by a music-note emoji.
+  // Multi-line, case-insensitive, m-flag for ^/$ on each line.
+  const offerPattern =
+    /(?:^|\n)\s*(?:Want to hear me say|Want to hear it|Hear me say|Let me say)[^\n]*?(?:🎵|🎶|🎼|\?|$)[^\n]*$/gim;
+
+  const stripped = reply.replace(offerPattern, "").trimEnd();
+
+  if (stripped === reply.trim() || stripped === reply) {
+    return { reply, audioOfferStripped: false };
+  }
+
+  // Append a soft nudge — "type 'upgrade' to hear me". Done at most
+  // once per reply. Concise on purpose so it doesn't feel preachy.
+  const nudge =
+    "\n\n_(Want to hear me say these? Type \"upgrade\" 🌿)_";
+  return {
+    reply: `${stripped}${nudge}`,
+    audioOfferStripped: true,
+  };
 }
 
 async function extractTargetPhrase(reply: string): Promise<string | null> {
