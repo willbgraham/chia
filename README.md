@@ -88,7 +88,7 @@ Copy `.env.local.example` to `.env.local` and fill in.
 5. Once deployed: Meta App → WhatsApp → Configuration → Webhook → set URL to `https://YOUR-DOMAIN/api/webhooks/whatsapp`, paste the verify token, click Verify and save → subscribe to `messages` field
 6. WhatsApp Manager → Message templates → create `chiachat_lesson_reminder`, body:
    ```
-   Hola {{1}}! It's {{2}} 🌿 I haven't heard from you in a while — ready to practise your Spanish today?
+   Hola {{1}}! It's {{2}} 🌿 I haven't heard from you in a while — ready to practice your Spanish today?
    ```
 
 ### 3. ElevenLabs

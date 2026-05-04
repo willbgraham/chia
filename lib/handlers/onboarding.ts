@@ -228,7 +228,7 @@ async function processStep5(args: OnboardingArgs): Promise<void> {
   await patchMemory(args.userId, { lesson_mode: mode });
   await sendText(
     args.whatsappNumber,
-    "Do you want me to check in on you if you haven't practised? I get a little worried when I don't hear from you 😊\n\n1. Yes — every day\n2. Yes — every few days\n3. No reminders thanks",
+    "Do you want me to check in on you if you haven't practiced? I get a little worried when I don't hear from you 😊\n\n1. Yes — every day\n2. Yes — every few days\n3. No reminders thanks",
   );
   await updateState(args.userId, { state: "onboarding_step_6" });
 }
@@ -324,7 +324,7 @@ async function processStep7(args: OnboardingArgs): Promise<void> {
 async function sendPlanQuestion(whatsappNumber: string): Promise<void> {
   await sendText(
     whatsappNumber,
-    "Last thing — I have a free plan where we can text as much as you want. To hear my voice, see my photos, and practise pronunciation, you'll need Premium 🌿\n\n1. Start free — text only for now\n2. Go Premium — €25/month, hear my voice, see my photos, practise pronunciation",
+    "Last thing — I have a free plan where we can text as much as you want. To hear my voice, see my photos, and practice pronunciation, you'll need Premium 🌿\n\n1. Start free — text only for now\n2. Go Premium — €25/month, hear my voice, see my photos, practice pronunciation",
   );
 }
 

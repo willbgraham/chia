@@ -43,7 +43,7 @@ export async function handleVoiceNote(args: VoiceNoteArgs): Promise<void> {
   if (!args.pendingPhrase) {
     await sendText(
       args.whatsappNumber,
-      "I lost track of what we were practising 🌿 Ask me to repeat?",
+      "I lost track of what we were practicing 🌿 Ask me to repeat?",
     );
     await updateState(args.userId, {
       state: "active_free_chat",
