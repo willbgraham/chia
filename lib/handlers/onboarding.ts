@@ -8,10 +8,11 @@ import type {
   LessonMode,
   ReminderPreference,
 } from "@/types";
-import { sendText, sendAudio } from "@/lib/messaging/whatsapp";
+import { sendText, sendAudio, sendImage } from "@/lib/messaging/whatsapp";
 import { getOrCreateAudio } from "@/lib/messaging/audio-cache";
 import { patchMemory, getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 interface OnboardingArgs {
   userId: string;
@@ -65,9 +66,16 @@ I'm going to teach you Spanish — I promise it'll feel nothing like school.
 What's your name?`;
 
 async function sendStep1(args: OnboardingArgs): Promise<void> {
-  // Audio intro — best-effort. If it succeeds, the follow-up text
-  // translates it. If it fails, we send a different text that doesn't
-  // reference a voice message that never arrived.
+  // Three messages — photo, voice, text — sent in that order so the
+  // visual lands first, then the audible greeting, then the text +
+  // first question. WhatsApp doesn't strictly guarantee delivery
+  // order, but in practice this sequence usually arrives correctly.
+  // Each step is best-effort — failure of one doesn't block the others.
+
+  // 1. Greeting photo (free for everyone — one-time premium teaser).
+  await sendGreetingPhoto(args.userId, args.whatsappNumber);
+
+  // 2. Voice intro.
   let voiceSent = false;
   try {
     const { publicUrl } = await getOrCreateAudio(VOICE_INTRO_PHRASE);
@@ -77,11 +85,52 @@ async function sendStep1(args: OnboardingArgs): Promise<void> {
     console.error("[onboarding] voice intro failed:", err);
   }
 
+  // 3. Text — translation + first question.
   await sendText(
     args.whatsappNumber,
     voiceSent ? TEXT_AFTER_VOICE : TEXT_FALLBACK_NO_VOICE,
   );
   await updateState(args.userId, { state: "onboarding_step_2" });
+}
+
+// Pick a teacher_image with context='greeting' for this user's teacher
+// and send it. If no greeting image is uploaded (or the user has no
+// teacher), skip silently — voice + text still go out, onboarding
+// continues. Mid-conversation photos (Phase 2) will reuse the same
+// teacher_images table but gate by plan + use a GPT classifier to pick.
+async function sendGreetingPhoto(
+  userId: string,
+  whatsappNumber: string,
+): Promise<void> {
+  try {
+    const sb = getAdminClient();
+
+    // Look up the user's teacher.
+    const { data: user } = await sb
+      .from("users")
+      .select("teacher_id")
+      .eq("id", userId)
+      .single();
+    const teacherId = user?.teacher_id;
+    if (!teacherId) return;
+
+    // Pick the most recently uploaded greeting photo. (Could be
+    // round-robin / least-recently-sent later; one-shot per user
+    // means it doesn't matter much yet.)
+    const { data: image } = await sb
+      .from("teacher_images")
+      .select("storage_url")
+      .eq("teacher_id", teacherId)
+      .eq("context", "greeting")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!image?.storage_url) return;
+
+    await sendImage(whatsappNumber, image.storage_url);
+  } catch (err) {
+    console.error("[onboarding] greeting photo failed:", err);
+  }
 }
 
 // ── Step 2: capture name → ask language ─────────────────────────────────────

@@ -70,6 +70,28 @@ export async function sendAudio(
   return parseSendResponse(res);
 }
 
+// Send an image. URL must be publicly fetchable by Meta (https, no auth).
+// Optional caption renders under the image. Used for greeting photos at
+// onboarding step 1 + Phase 2 mid-conversation contextual photos.
+export async function sendImage(
+  toNumber: string,
+  imageUrl: string,
+  caption?: string,
+): Promise<SendResult> {
+  const res = await fetch(endpoint(`${phoneNumberId()}/messages`), {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipient(toNumber),
+      type: "image",
+      image: caption ? { link: imageUrl, caption } : { link: imageUrl },
+    }),
+  });
+  return parseSendResponse(res);
+}
+
 interface TemplateVariable {
   type: "text";
   text: string;
