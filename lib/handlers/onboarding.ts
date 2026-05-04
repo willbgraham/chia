@@ -51,11 +51,15 @@ export async function handleOnboarding(args: OnboardingArgs): Promise<void> {
 const VOICE_INTRO_PHRASE =
   "Hola, soy Chia. Bienvenido a ChiaChat. Vamos a aprender español juntos.";
 
-const TEXT_AFTER_VOICE = `That was me saying:
-"Hi, I'm Chia. Welcome to ChiaChat. Let's learn Spanish together." 🌿
+// Two messages go out: voice note + text. Meta doesn't guarantee
+// order between two separate API calls, so the copy is written to
+// read naturally regardless of which arrives first.
+const TEXT_AFTER_VOICE = `Hi, I'm Chia. Welcome to ChiaChat. Let's learn Spanish together 🌿
 
 I'm going to teach you — and I promise it'll feel nothing like school. What's your name?`;
 
+// Sent only when the voice intro fails. Slightly different — opens
+// in Spanish so the student still gets a hint of immersion.
 const TEXT_FALLBACK_NO_VOICE = `¡Hola! Soy Chia 🌿
 I'm going to teach you Spanish — I promise it'll feel nothing like school.
 What's your name?`;
