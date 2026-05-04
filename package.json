@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "prewarm-audio": "node scripts/prewarm-audio.mjs"
+    "prewarm-audio": "node scripts/prewarm-audio.mjs",
+    "generate-curriculum": "node scripts/generate-curriculum.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

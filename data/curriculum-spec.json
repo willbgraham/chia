@@ -1,0 +1,59 @@
+{
+  "_comment": "Curriculum taxonomy for ChiaChat. Each entry produces one row in the lessons table. Run scripts/generate-curriculum.mjs to materialize. Lessons are skipped if (language, level, topic, lesson_number) already exists, so the script is idempotent and re-runnable. CEFR mapping for the 'level' column (which is currently free-text in the schema): A1→beginner, A2→intermediate, B1+→advanced. We keep the legacy 3-tier level for now to match user.memory_json.level; the 'cefr' field is purely descriptive for the generator prompt.",
+  "language": "Spanish",
+  "lessons": [
+    { "level": "beginner", "cefr": "A1", "topic": "greetings",        "lesson_number": 1, "title": "Hola — your first words in Spanish",                  "focus": "saludos básicos: hola, buenos días, buenas tardes, buenas noches, adiós, hasta luego, mucho gusto" },
+    { "level": "beginner", "cefr": "A1", "topic": "greetings",        "lesson_number": 2, "title": "Introducing yourself — me llamo, soy",                "focus": "me llamo, mi nombre es, soy de, encantado/a, ¿cómo te llamas?, ¿de dónde eres?" },
+    { "level": "beginner", "cefr": "A1", "topic": "greetings",        "lesson_number": 3, "title": "Small talk — ¿cómo estás?",                          "focus": "¿cómo estás?, bien/mal/regular, ¿qué tal?, gracias, de nada, por favor" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "numbers",          "lesson_number": 1, "title": "Numbers 0–10",                                       "focus": "cero through diez, used in introductions and ages" },
+    { "level": "beginner", "cefr": "A1", "topic": "numbers",          "lesson_number": 2, "title": "Numbers 11–30",                                      "focus": "11–15 unique forms, 16–19 dieci+, 20s veinti+, 'y' linker for 31+" },
+    { "level": "beginner", "cefr": "A1", "topic": "numbers",          "lesson_number": 3, "title": "Numbers 30–100 + age",                               "focus": "treinta–cien, the y-linker rule, tener años pattern" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "family",           "lesson_number": 1, "title": "La familia — core members",                          "focus": "padre, madre, hermano, hermana, hijo, hija, abuelo, abuela, esposo, esposa" },
+    { "level": "beginner", "cefr": "A1", "topic": "family",           "lesson_number": 2, "title": "Tener — describing your family",                     "focus": "yo tengo / tú tienes / él tiene plus family vocab to talk about who you have" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "verb_ser_estar",   "lesson_number": 1, "title": "Ser vs estar — the basics",                          "focus": "ser for permanent traits (soy alto, soy de Madrid), estar for temporary states (estoy cansado, está aquí)" },
+    { "level": "beginner", "cefr": "A1", "topic": "verb_ser_estar",   "lesson_number": 2, "title": "Conjugating ser in the present",                     "focus": "soy, eres, es, somos, sois, son with usage examples" },
+    { "level": "beginner", "cefr": "A1", "topic": "verb_ser_estar",   "lesson_number": 3, "title": "Conjugating estar in the present",                   "focus": "estoy, estás, está, estamos, estáis, están with usage examples" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "verbs_present",    "lesson_number": 1, "title": "Regular -ar verbs in present",                       "focus": "hablar, estudiar, trabajar — endings -o, -as, -a, -amos, -áis, -an" },
+    { "level": "beginner", "cefr": "A1", "topic": "verbs_present",    "lesson_number": 2, "title": "Regular -er verbs in present",                       "focus": "comer, beber, leer — endings -o, -es, -e, -emos, -éis, -en" },
+    { "level": "beginner", "cefr": "A1", "topic": "verbs_present",    "lesson_number": 3, "title": "Regular -ir verbs in present",                       "focus": "vivir, escribir — endings -o, -es, -e, -imos, -ís, -en" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "food_basics",      "lesson_number": 1, "title": "Comida básica",                                      "focus": "pan, agua, leche, café, fruta, verdura, carne, pescado, arroz" },
+    { "level": "beginner", "cefr": "A1", "topic": "food_basics",      "lesson_number": 2, "title": "En el café — ordering",                              "focus": "quiero, me gustaría, un café por favor, la cuenta, gracias" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "time",             "lesson_number": 1, "title": "Days of the week",                                   "focus": "lunes, martes, miércoles, jueves, viernes, sábado, domingo, hoy, ayer, mañana" },
+    { "level": "beginner", "cefr": "A1", "topic": "time",             "lesson_number": 2, "title": "Telling time — la hora",                             "focus": "¿qué hora es?, son las dos, es la una, y media, y cuarto, menos cuarto" },
+
+    { "level": "beginner", "cefr": "A1", "topic": "describing",       "lesson_number": 1, "title": "Adjectives — describing things and people",          "focus": "bueno/malo, grande/pequeño, alto/bajo, joven/viejo, bonito/feo + agreement basics" },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "verb_preterite",  "lesson_number": 1, "title": "Preterite — regular -ar verbs",                   "focus": "hablé, hablaste, habló, hablamos, hablasteis, hablaron — for completed past actions" },
+    { "level": "intermediate", "cefr": "A2", "topic": "verb_preterite",  "lesson_number": 2, "title": "Preterite — regular -er and -ir verbs",           "focus": "comí, comiste, comió, comimos, comisteis, comieron — same for -ir" },
+    { "level": "intermediate", "cefr": "A2", "topic": "verb_preterite",  "lesson_number": 3, "title": "Preterite irregulars — ser, ir, ver, dar",        "focus": "irregular high-frequency: fui/fue, vi/vio, di/dio. Ser and ir share fui/fuiste/fue forms." },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "verb_imperfect", "lesson_number": 1, "title": "Imperfect — describing the past",                  "focus": "hablaba, comía, vivía — for ongoing or habitual past states (era niño, vivía en Madrid)" },
+    { "level": "intermediate", "cefr": "A2", "topic": "verb_imperfect", "lesson_number": 2, "title": "Preterite vs imperfect — the line",                "focus": "completed action (preterite) vs background/setting (imperfect). Examples in narrative." },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "food_restaurant","lesson_number": 1, "title": "En el restaurante — ordering and paying",          "focus": "carta, primero, segundo, postre, la cuenta, ¿qué recomienda?, está delicioso" },
+    { "level": "intermediate", "cefr": "A2", "topic": "food_restaurant","lesson_number": 2, "title": "Tapas vocabulary — sharing dishes",                "focus": "tortilla, jamón, croquetas, patatas bravas, ¿algo para compartir?, pedir, recomendaciones" },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "travel",        "lesson_number": 1, "title": "En el aeropuerto y la estación",                     "focus": "billete, vuelo, tren, andén, equipaje, ¿a qué hora sale?, cancelado, retrasado" },
+    { "level": "intermediate", "cefr": "A2", "topic": "travel",        "lesson_number": 2, "title": "Asking for directions",                              "focus": "¿dónde está...?, a la derecha, a la izquierda, todo recto, cerca, lejos, ¿está lejos?" },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "shopping",      "lesson_number": 1, "title": "De compras — clothes and sizes",                     "focus": "talla, color, probador, ¿cuánto cuesta?, demasiado caro, me lo llevo" },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "weather",       "lesson_number": 1, "title": "El tiempo — weather expressions",                    "focus": "hace sol, hace frío, llueve, nieva, está nublado, ¿qué tiempo hace?" },
+
+    { "level": "intermediate", "cefr": "A2", "topic": "people",        "lesson_number": 1, "title": "Describing people — personality",                    "focus": "simpático, antipático, gracioso, serio, tímido, abierto, generoso, tacaño + ser/estar pairing" },
+
+    { "level": "advanced", "cefr": "B1", "topic": "verb_subjunctive", "lesson_number": 1, "title": "Subjunctive intro — when reality bends",             "focus": "hable/coma/viva, basic forms. Used for doubts, desires, emotions: 'quiero que hables', 'es importante que vengas'." },
+    { "level": "advanced", "cefr": "B1", "topic": "verb_subjunctive", "lesson_number": 2, "title": "Subjunctive triggers — common ones",                 "focus": "no creo que, espero que, ojalá, dudo que, es posible que — when these appear, subjunctive follows" },
+
+    { "level": "advanced", "cefr": "B1", "topic": "verb_conditional", "lesson_number": 1, "title": "Conditional — would and could",                      "focus": "hablaría, comería, viviría — endings -ía, -ías, etc. For polite requests, hypothetical situations." },
+
+    { "level": "advanced", "cefr": "B1", "topic": "idioms",           "lesson_number": 1, "title": "Idioms 1 — daily expressions",                       "focus": "estar en las nubes, dar en el clavo, no tener pelos en la lengua, costar un ojo de la cara, echar una mano" },
+    { "level": "advanced", "cefr": "B1", "topic": "idioms",           "lesson_number": 2, "title": "Idioms 2 — emotions and reactions",                  "focus": "tener mala leche, estar hasta las narices, ser pan comido, montar un pollo, partirse de risa" }
+  ]
+}
