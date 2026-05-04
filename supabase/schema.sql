@@ -103,6 +103,23 @@ create table if not exists teacher_images (
 create index if not exists idx_images_teacher on teacher_images (teacher_id);
 create index if not exists idx_images_context on teacher_images (context);
 
+-- ── teacher_image_sends ─────────────────────────────────────────────────────
+-- Log of mid-conversation teacher photos sent to each student. Used by
+-- the photo picker to avoid sending the same image twice within ~30 days
+-- and to throttle frequency (≤1 per ~6 turns).
+create table if not exists teacher_image_sends (
+  id uuid primary key default gen_random_uuid(),
+  teacher_id uuid not null references teachers(id) on delete cascade,
+  image_id uuid not null references teacher_images(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  sent_at timestamp with time zone default now()
+);
+
+create index if not exists idx_image_sends_user_sent
+  on teacher_image_sends (user_id, sent_at desc);
+create index if not exists idx_image_sends_image
+  on teacher_image_sends (image_id);
+
 -- ── lessons ─────────────────────────────────────────────────────────────────
 create table if not exists lessons (
   id uuid primary key default gen_random_uuid(),

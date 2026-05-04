@@ -2,12 +2,13 @@
 // + recent messages, send the response. If the response offers audio, store
 // the target phrase in pending_phrase and switch state.
 
-import { sendText } from "@/lib/messaging/whatsapp";
+import { sendText, sendImage } from "@/lib/messaging/whatsapp";
 import { chiaTextTurn, chatCompletion } from "@/lib/messaging/openai";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { accountUrl } from "@/lib/account/magic-link";
+import { pickContextualPhoto } from "@/lib/handlers/photo-pick";
 
 interface FreeChatArgs {
   userId: string;
@@ -73,6 +74,27 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
       });
     }
   }
+
+  // Mid-conversation photo (premium only). Best-effort — failure
+  // doesn't affect the chat. Skip if state has just been set to
+  // awaiting_audio_confirm: the audio offer is already a moment of
+  // its own and stacking a photo on top is overkill.
+  if (args.userPlan === "premium" && args.teacherId) {
+    try {
+      const photo = await pickContextualPhoto({
+        userId: args.userId,
+        teacherId: args.teacherId,
+        chiaReply: reply,
+        studentMessage: args.userMessage,
+      });
+      if (photo) {
+        await sendImage(args.whatsappNumber, photo.storageUrl);
+      }
+    } catch (err) {
+      console.error("[free-chat] photo send failed:", err);
+    }
+  }
+
   // (audioOfferStripped intentionally unused — kept for future analytics)
   void audioOfferStripped;
 }
