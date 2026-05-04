@@ -324,7 +324,7 @@ async function processStep7(args: OnboardingArgs): Promise<void> {
 async function sendPlanQuestion(whatsappNumber: string): Promise<void> {
   await sendText(
     whatsappNumber,
-    "Last thing — I have a free plan where we can text as much as you want. To hear my voice and practise pronunciation, you'll need Premium 🌿\n\n1. Start free — text only for now\n2. Go Premium — €25/month, hear my voice, practise pronunciation",
+    "Last thing — I have a free plan where we can text as much as you want. To hear my voice, see my photos, and practise pronunciation, you'll need Premium 🌿\n\n1. Start free — text only for now\n2. Go Premium — €25/month, hear my voice, see my photos, practise pronunciation",
   );
 }
 
