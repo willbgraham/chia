@@ -222,6 +222,9 @@ export default async function Home() {
             <span>ChiaChat — Made in Valencia</span>
           </div>
           <div className="flex items-center gap-6">
+            <Link href="/upgrade" className="hover:text-text">
+              Premium
+            </Link>
             <Link href="/support" className="hover:text-text">
               Support
             </Link>

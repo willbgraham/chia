@@ -283,16 +283,15 @@ async function processStep7(args: OnboardingArgs): Promise<void> {
 
   if (choice === "premium") {
     await patchMemory(args.userId, { plan: "premium" });
-    const link = process.env.STRIPE_PREMIUM_PAYMENT_LINK ?? "";
-    // Use user.id (UUID) as client_reference_id — URL-safe.
-    const url = link
-      ? `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${args.userId}`
-      : "";
+    // Send to the branded /upgrade landing page with userId baked
+    // into ?ref so the eventual Stripe checkout carries the right
+    // client_reference_id back through the webhook.
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
+    const url = `${base.replace(/\/+$/, "")}/upgrade?ref=${encodeURIComponent(args.userId)}`;
     await sendText(
       args.whatsappNumber,
-      url
-        ? `Lovely 🌿 Tap here to subscribe — €25/month for voice and pronunciation: ${url}\n\nOnce you're done, message me back and we'll start.`
-        : "Lovely 🌿 Premium subscription isn't quite set up on my end — message me again in a bit.",
+      `Lovely 🌿 Tap here to subscribe — €25/month for voice, photos, and pronunciation: ${url}\n\nOnce you're done, message me back and we'll start.`,
     );
     // Leave state in step 7 until Stripe webhook flips them to premium and
     // a separate reactivation message gets sent.

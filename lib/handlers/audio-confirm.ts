@@ -63,10 +63,15 @@ export async function handleAudioConfirm(args: AudioConfirmArgs): Promise<void> 
     args.pendingPhrase.length,
   );
   if (!limit.ok) {
-    const stripeLink = process.env.STRIPE_PREMIUM_PAYMENT_LINK ?? "";
+    // Premium audio quota exhausted for the period. Point them at
+    // the branded /upgrade page (mostly billing info / cancel
+    // self-service) rather than a bare Stripe link.
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
+    const upgradeUrl = `${base.replace(/\/+$/, "")}/upgrade?ref=${encodeURIComponent(args.userId)}`;
     await sendText(
       args.whatsappNumber,
-      `We've hit your voice limit for the month — text continues 😊 ${stripeLink ? `If you'd like to top up, here: ${stripeLink}` : ""}`.trim(),
+      `We've hit your voice limit for the month — text continues 😊 ${upgradeUrl}`,
     );
     await updateState(args.userId, {
       state: "active_free_chat",

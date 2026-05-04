@@ -339,21 +339,18 @@ async function sendUpgradeLink(
   whatsappNumber: string,
   userId: string,
 ): Promise<void> {
-  const link = process.env.STRIPE_PREMIUM_PAYMENT_LINK;
-  if (!link) {
-    await sendText(
-      whatsappNumber,
-      "Premium isn't quite set up on my side yet 🌿 — give me a minute and try again?",
-    );
-    return;
-  }
-  // Use user.id (UUID) as client_reference_id — URL-safe and won't get
-  // mangled like the phone number (+ → %2B). The Stripe webhook looks
-  // up by id to flip the user to premium.
-  const url = `${link}${link.includes("?") ? "&" : "?"}client_reference_id=${userId}`;
+  // Send students to our branded /upgrade landing page rather than
+  // the bare Stripe Payment Link. Two reasons:
+  //   1. Builds trust — they see what's included before paying
+  //   2. Lets us A/B test pricing copy without touching Stripe
+  // The userId is passed through ?ref= and re-attached as
+  // client_reference_id when they actually click checkout.
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
+  const url = `${baseUrl.replace(/\/+$/, "")}/upgrade?ref=${encodeURIComponent(userId)}`;
   await sendText(
     whatsappNumber,
-    `Premium gets you my voice and pronunciation practice — €25/month, cancel anytime 🌿\n\n${url}\n\nOnce you're done, message me back and we'll get going.`,
+    `Premium gets you my voice, photos, and pronunciation practice — €25/month, cancel anytime 🌿\n\n${url}\n\nOnce you're done, message me back and we'll get going.`,
   );
 }
 
