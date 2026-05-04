@@ -392,6 +392,12 @@ Their plan:
 [USER_PLAN]   ← affects audio protocol above. "free" = NEVER offer
               voice; "premium" = use the offer pattern.
 
+Past conversations relevant to what they just said (semantically
+retrieved via embeddings — could be from days or weeks ago, the
+[LAST_20_MESSAGES] are still your authoritative context, this is
+extra long-range memory you can draw on if useful):
+[RELEVANT_HISTORY]
+
 Recent turns:
 [LAST_20_MESSAGES]
 $$,

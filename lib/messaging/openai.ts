@@ -3,6 +3,12 @@
 
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const TRANSCRIPTION_ENDPOINT = "https://api.openai.com/v1/audio/transcriptions";
+const EMBEDDING_ENDPOINT = "https://api.openai.com/v1/embeddings";
+
+// text-embedding-3-small is the cheap, fast, 1536-dim embedding model.
+// Sufficient for chat-message semantic retrieval. Bump to large only
+// if retrieval quality stalls.
+const EMBEDDING_MODEL = "text-embedding-3-small";
 // Default for utility tasks (memory extraction, phrase classifier).
 const DEFAULT_MODEL = "gpt-4o-mini";
 // Model used for personality-heavy turns where warmth matters: free chat,
@@ -60,18 +66,32 @@ export async function chatCompletion(
 
 // Run the Chia text-turn prompt: build the system prompt with placeholders
 // substituted, append the conversation history and the latest user message.
+//
+// `relevantHistory` is the optional pgvector-retrieved long-range
+// context — older messages semantically related to the current
+// student input. Surfaces under [RELEVANT_HISTORY] in the system
+// prompt template; if the template doesn't include that placeholder
+// it's a no-op (graceful fallback for older prompts).
 export async function chiaTextTurn(args: {
   systemPromptTemplate: string;
   memoryJson: object;
   state: string;
   recentMessages: ChatMessage[];
+  relevantHistory?: ChatMessage[];
   userMessage: string;
   userPlan?: "free" | "premium";
 }): Promise<string> {
+  const relevantText = args.relevantHistory && args.relevantHistory.length > 0
+    ? args.relevantHistory
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n")
+    : "(none yet — this is early in your relationship with the student)";
+
   const systemPrompt = args.systemPromptTemplate
     .replace("[MEMORY_JSON]", JSON.stringify(args.memoryJson, null, 2))
     .replace("[STATE]", args.state)
     .replace("[USER_PLAN]", args.userPlan ?? "free")
+    .replace("[RELEVANT_HISTORY]", relevantText)
     .replace(
       "[LAST_20_MESSAGES]",
       args.recentMessages
@@ -119,6 +139,47 @@ export async function transcribeAudio(
   }
   const j = (await res.json()) as { text?: string };
   return j.text ?? "";
+}
+
+// Generate a 1536-dim embedding for a chunk of text via
+// text-embedding-3-small. Best-effort — returns null on any error
+// so callers can log the message without an embedding (it'll just be
+// excluded from semantic retrieval).
+//
+// Empty / very short strings (< 3 chars) skip the API call entirely
+// because their embeddings are noise and cost real money in
+// aggregate.
+export async function embedText(text: string): Promise<number[] | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  const trimmed = text.trim();
+  if (trimmed.length < 3) return null;
+
+  try {
+    const res = await fetch(EMBEDDING_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: trimmed.slice(0, 8000), // hard cap to avoid runaway tokens
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[embed] ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      return null;
+    }
+    const j = (await res.json()) as {
+      data?: Array<{ embedding?: number[] }>;
+    };
+    const vec = j.data?.[0]?.embedding;
+    return Array.isArray(vec) && vec.length === 1536 ? vec : null;
+  } catch (err) {
+    console.error("[embed] failed:", err);
+    return null;
+  }
 }
 
 // Pronunciation analysis — given the target phrase the student was

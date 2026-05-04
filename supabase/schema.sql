@@ -121,6 +121,15 @@ create table if not exists messages (
 create index if not exists idx_messages_user_created
   on messages (user_id, created_at desc);
 
+-- pgvector long-term memory. Embedding column + HNSW index for
+-- semantic retrieval. Extension enabled via separate migration.
+alter table messages
+  add column if not exists embedding vector(1536);
+create index if not exists idx_messages_embedding_hnsw
+  on messages
+  using hnsw (embedding vector_cosine_ops)
+  with (m = 16, ef_construction = 64);
+
 -- ── teacher_image_sends ─────────────────────────────────────────────────────
 -- Log of mid-conversation teacher photos sent to each student. Used by
 -- the photo picker to avoid sending the same image twice within ~30 days

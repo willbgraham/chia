@@ -9,7 +9,7 @@ import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { accountUrl } from "@/lib/account/magic-link";
 import { pickContextualPhoto } from "@/lib/handlers/photo-pick";
-import { logMessage } from "@/lib/handlers/messages";
+import { logMessage, findRelevantMessages } from "@/lib/handlers/messages";
 import { handleLesson, advanceCurriculum } from "@/lib/handlers/lesson";
 
 interface FreeChatArgs {
@@ -36,11 +36,23 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   const systemPrompt = await getTeacherSystemPrompt(args.teacherId);
   const recent = await getRecentMessages(args.userId);
 
+  // Long-range memory retrieval: pgvector finds the K most semantically
+  // similar past messages from this user (excluding the last 30min,
+  // which are already in the rolling buffer above). Best-effort —
+  // if the embedding API fails we just skip the long-range injection.
+  // Cost: ~$0.0001 per turn; latency: ~150-300ms.
+  const relevant = await findRelevantMessages(args.userId, args.userMessage, 5);
+  const relevantHistory = relevant.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
   const rawReply = await chiaTextTurn({
     systemPromptTemplate: systemPrompt,
     memoryJson: memory,
     state: "active_free_chat",
     recentMessages: recent,
+    relevantHistory,
     userMessage: args.userMessage,
     userPlan: args.userPlan,
   });
