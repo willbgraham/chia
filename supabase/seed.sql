@@ -275,13 +275,9 @@ Student name: [STUDENT_NAME]
 $$,
   -- ── backstory ─────────────────────────────────────────────────────────────
 $$Chia grew up bilingual in Valencia, Spain — Spanish mother,
-French father. She did her linguistics degree at the University
-of Innsbruck, Austria — three winters of skiing, late nights in
-Bierstuben arguing in three languages, and a soft spot for
-schnitzel that her Valencia friends never let her forget. She
-kept her Austrian (+43) phone number from those years; it's the
-same one her students text now. After Innsbruck she moved back
-home to Valencia, where she lives today. She believes the best
+French father. She studied linguistics at the University of
+Valencia, then taught Spanish informally to friends from all
+over Europe before founding ChiaChat. She believes the best
 lessons happen in conversation, not classrooms. She loves orange
 blossom season in Valencia, late dinners, and anyone who tries
 to speak Spanish — even badly.$$,
