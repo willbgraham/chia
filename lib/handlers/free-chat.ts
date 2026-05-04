@@ -5,11 +5,12 @@
 import { sendText, sendImage } from "@/lib/messaging/whatsapp";
 import { chiaTextTurn, chatCompletion } from "@/lib/messaging/openai";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { getMemory } from "@/lib/handlers/memory";
+import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { accountUrl } from "@/lib/account/magic-link";
 import { pickContextualPhoto } from "@/lib/handlers/photo-pick";
 import { logMessage } from "@/lib/handlers/messages";
+import { handleLesson, advanceCurriculum } from "@/lib/handlers/lesson";
 
 interface FreeChatArgs {
   userId: string;
@@ -20,6 +21,16 @@ interface FreeChatArgs {
 }
 
 export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
+  // Lesson advancement intent — fast path. If the student says
+  // "next lesson" / "teach me" / etc., skip the GPT chat reply
+  // entirely and route them straight into the structured lesson
+  // flow. Far better UX than Chia chatting about it then the lesson
+  // arriving as a separate message.
+  if (wantsNextLesson(args.userMessage)) {
+    await startOrAdvanceLesson(args);
+    return;
+  }
+
   const memory = await getMemory(args.userId);
 
   const systemPrompt = await getTeacherSystemPrompt(args.teacherId);
@@ -187,6 +198,87 @@ function wantsUpgrade(message: string): boolean {
     "want premium",
   ];
   return triggers.some((kw) => t.includes(kw));
+}
+
+// "Next lesson" / "teach me" intent — student in free chat asking
+// to switch into a structured lesson, or to advance to the next one
+// if they already have a curriculum position.
+function wantsNextLesson(message: string): boolean {
+  const t = message.toLowerCase();
+  const triggers = [
+    "next lesson",
+    "another lesson",
+    "give me a lesson",
+    "teach me",
+    "lesson please",
+    "let's do a lesson",
+    "do a lesson",
+    "more lessons",
+    "next topic",
+    "start a lesson",
+    "begin a lesson",
+    "i want to learn",
+    "teach me something",
+  ];
+  return triggers.some((kw) => t.includes(kw));
+}
+
+// Bridge from free-chat to structured-lesson mode. If the student has
+// no curriculum position yet, seed it to the first available lesson
+// for their level. Otherwise advance to the next one. Then call the
+// lesson handler immediately so the lesson lands as their next reply.
+async function startOrAdvanceLesson(args: FreeChatArgs): Promise<void> {
+  const memory = await getMemory(args.userId);
+  const pos = memory.curriculum_position;
+
+  if (!pos?.current_topic || !pos.current_lesson) {
+    // No position yet — seed to the first lesson for their level.
+    const sb = getAdminClient();
+    const { data: firstLesson } = await sb
+      .from("lessons")
+      .select("topic, lesson_number")
+      .eq("language", "Spanish")
+      .eq("level", memory.level ?? "beginner")
+      .order("topic", { ascending: true })
+      .order("lesson_number", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!firstLesson) {
+      await sendText(
+        args.whatsappNumber,
+        "I don't have any lessons set up yet 🌿 Let's just keep chatting — I'll teach you as we go.",
+      );
+      return;
+    }
+    await patchMemory(args.userId, {
+      curriculum_position: {
+        current_topic: firstLesson.topic,
+        current_lesson: firstLesson.lesson_number,
+        completed_topics: [],
+      },
+    });
+  } else {
+    // Existing position — advance.
+    await advanceCurriculum(args.userId);
+  }
+
+  // Log the student's "next lesson" turn so the admin viewer reflects
+  // why the next message is a lesson, not free chat.
+  await logMessage({
+    userId: args.userId,
+    role: "user",
+    content: args.userMessage,
+  });
+
+  // Switch state and fire the lesson handler immediately.
+  await updateState(args.userId, { state: "active_structured_lesson" });
+  await handleLesson({
+    userId: args.userId,
+    whatsappNumber: args.whatsappNumber,
+    teacherId: args.teacherId,
+    userMessage: args.userMessage,
+    userPlan: args.userPlan,
+  });
 }
 
 // Account-management intent — cancel / manage / billing / support /

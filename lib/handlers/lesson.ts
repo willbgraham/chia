@@ -7,13 +7,18 @@ import { chatCompletion } from "@/lib/messaging/openai";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
-import type { Lesson, LessonContent, LessonItem } from "@/types";
+import { logMessage } from "@/lib/handlers/messages";
+import type { Lesson, LessonContent, LessonItem, Plan } from "@/types";
 
 interface LessonArgs {
   userId: string;
   whatsappNumber: string;
   teacherId: string | null;
   userMessage: string;
+  // Plan-gates the audio offer at the end of the lesson. Free
+  // students see phonetic spellings only; premium gets the
+  // "Want to hear me say...?" prompt that triggers awaiting_audio_confirm.
+  userPlan?: Plan;
 }
 
 export async function handleLesson(args: LessonArgs): Promise<void> {
@@ -51,19 +56,34 @@ export async function handleLesson(args: LessonArgs): Promise<void> {
   // voice). Keep it short and punchy.
   const formatted = await formatLesson(lesson, args.teacherId);
   await sendText(args.whatsappNumber, formatted);
+  await logMessage({
+    userId: args.userId,
+    role: "assistant",
+    content: formatted,
+  });
 
-  // Find the first audio-worthy item and offer to speak it.
+  // Plan-gated audio offer at the end of the lesson. Premium gets
+  // "Want to hear me say...?"; free goes straight back to free chat
+  // with no offer (mirrors the free-chat plan-gate so we don't
+  // bait-and-switch in lessons either).
   const audioItem = lesson.content.items?.find((i) => i.audio_worthy);
-  if (audioItem) {
-    await sendText(
-      args.whatsappNumber,
-      `Want to hear me say "${audioItem.target_language}"? 🎵`,
-    );
+  if (audioItem && args.userPlan === "premium") {
+    const offer = `Want to hear me say "${audioItem.target_language}"? 🎵`;
+    await sendText(args.whatsappNumber, offer);
+    await logMessage({
+      userId: args.userId,
+      role: "assistant",
+      content: offer,
+    });
     await updateState(args.userId, {
       state: "awaiting_audio_confirm",
       pending_phrase: audioItem.target_language,
     });
   } else {
+    // Free or no audio item — drop into free chat for follow-up
+    // questions about the lesson. Free students who want voice will
+    // see the "type 'upgrade' to hear me" nudge applied by the
+    // free-chat handler on their next reply.
     await updateState(args.userId, { state: "active_free_chat" });
   }
 }

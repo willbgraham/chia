@@ -122,6 +122,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         whatsappNumber: msg.whatsappNumber,
         teacherId: user.teacher_id,
         userMessage: msg.textBody,
+        userPlan: user.plan,
       });
       return;
 
