@@ -19,6 +19,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { logAudioUsage, isWithinLimit } from "@/lib/handlers/usage";
+import { logMessage } from "@/lib/handlers/messages";
 import type { ConversationStateName, MemoryJson, Plan } from "@/types";
 
 interface VoiceNoteArgs {
@@ -97,8 +98,18 @@ export async function handleVoiceNote(args: VoiceNoteArgs): Promise<void> {
     return;
   }
 
-  // 4. Send Chia's correction text.
+  // 4. Send Chia's correction text + log both inbound + outbound.
   await sendText(args.whatsappNumber, correctionText);
+  await logMessage({
+    userId: args.userId,
+    role: "user",
+    content: `[voice note: "${transcription.trim()}"]`,
+  });
+  await logMessage({
+    userId: args.userId,
+    role: "assistant",
+    content: correctionText,
+  });
 
   // 5. Optional: corrective audio clip (only premium + within quota).
   await maybeSendCorrectiveAudio({

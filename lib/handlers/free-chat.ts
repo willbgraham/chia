@@ -9,6 +9,7 @@ import { getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { accountUrl } from "@/lib/account/magic-link";
 import { pickContextualPhoto } from "@/lib/handlers/photo-pick";
+import { logMessage } from "@/lib/handlers/messages";
 
 interface FreeChatArgs {
   userId: string;
@@ -45,8 +46,12 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   );
 
   await sendText(args.whatsappNumber, reply);
+  // Update both stores: rolling buffer (fast path for next GPT turn)
+  // and the permanent messages table (admin viewer + future features).
   await appendMessage(args.userId, "user", args.userMessage);
   await appendMessage(args.userId, "assistant", reply);
+  await logMessage({ userId: args.userId, role: "user", content: args.userMessage });
+  await logMessage({ userId: args.userId, role: "assistant", content: reply });
 
   // Detect upgrade intent — if the student is on free and asks to
   // upgrade, send them the Stripe payment link as a follow-up message.
@@ -89,6 +94,12 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
       });
       if (photo) {
         await sendImage(args.whatsappNumber, photo.storageUrl);
+        await logMessage({
+          userId: args.userId,
+          role: "assistant",
+          content: `[photo: ${photo.context ?? "general"}]`,
+          imageUrl: photo.storageUrl,
+        });
       }
     } catch (err) {
       console.error("[free-chat] photo send failed:", err);

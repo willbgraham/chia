@@ -3,14 +3,20 @@
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { User } from "@/types";
+import type { MessageRow } from "@/lib/handlers/messages";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate, formatRelativeTime, maskWhatsAppNumber } from "@/lib/utils";
 
 interface UserTableProps {
   users: User[];
+  // Server-fetched conversation history per user, oldest-first.
+  // Empty/missing entry falls back to memory_json._recent rendering
+  // (covers users from before the messages table existed; usually
+  // empty after the migration backfill).
+  messagesByUser?: Record<string, MessageRow[]>;
 }
 
-export function UserTable({ users }: UserTableProps) {
+export function UserTable({ users, messagesByUser }: UserTableProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (users.length === 0) {
@@ -72,7 +78,10 @@ export function UserTable({ users }: UserTableProps) {
                 {isOpen ? (
                   <tr className="border-t border-border bg-bg">
                     <td colSpan={6} className="px-4 py-3">
-                      <UserDetailPanel user={u} />
+                      <UserDetailPanel
+                        user={u}
+                        messages={messagesByUser?.[u.id] ?? []}
+                      />
                     </td>
                   </tr>
                 ) : null}
@@ -90,13 +99,31 @@ interface RecentMessage {
   content: string;
 }
 
-function UserDetailPanel({ user }: { user: User }) {
+function UserDetailPanel({
+  user,
+  messages,
+}: {
+  user: User;
+  messages: MessageRow[];
+}) {
   const memory = user.memory_json as {
     _recent?: RecentMessage[];
     name?: string;
     [key: string]: unknown;
   };
-  const recent = Array.isArray(memory?._recent) ? memory._recent : [];
+
+  // Prefer the persistent messages table (full history). Fall back to
+  // memory_json._recent for users with no messages backfilled (rare
+  // after the migration; only happens if backfill missed an edge case).
+  const fromTable: RecentMessage[] = messages.map((m) => ({
+    role: m.role,
+    content: m.content + (m.image_url ? `\n[image]` : ""),
+  }));
+  const fromBuffer: RecentMessage[] = Array.isArray(memory?._recent)
+    ? memory._recent
+    : [];
+  const recent = fromTable.length > 0 ? fromTable : fromBuffer;
+  const usingTable = fromTable.length > 0;
 
   // Build a "memory minus _recent" object for the JSON column so the
   // raw JSON view doesn't drown out the high-signal facts (name, level,
@@ -109,15 +136,16 @@ function UserDetailPanel({ user }: { user: User }) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-xs uppercase text-muted">
-            Recent conversation
+            {usingTable ? "Conversation" : "Recent conversation"}
             <span className="ml-2 text-muted/70">
-              ({recent.length} {recent.length === 1 ? "turn" : "turns"})
+              ({recent.length} {recent.length === 1 ? "turn" : "turns"}
+              {usingTable ? "" : " · buffer"})
             </span>
           </div>
         </div>
         {recent.length === 0 ? (
           <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted">
-            No recent messages buffered.
+            No messages yet.
           </div>
         ) : (
           <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-thin pr-1">

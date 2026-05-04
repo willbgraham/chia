@@ -103,6 +103,24 @@ create table if not exists teacher_images (
 create index if not exists idx_images_teacher on teacher_images (teacher_id);
 create index if not exists idx_images_context on teacher_images (context);
 
+-- ── messages ────────────────────────────────────────────────────────────────
+-- Permanent log of every inbound + outbound message. The fast-path
+-- rolling buffer (users.memory_json._recent) still serves as GPT
+-- context (capped at ~20 turns); this table is the source of truth
+-- for full history, GDPR exports, and future long-term-memory features.
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  audio_url text,
+  image_url text,
+  created_at timestamp with time zone default now()
+);
+
+create index if not exists idx_messages_user_created
+  on messages (user_id, created_at desc);
+
 -- ── teacher_image_sends ─────────────────────────────────────────────────────
 -- Log of mid-conversation teacher photos sent to each student. Used by
 -- the photo picker to avoid sending the same image twice within ~30 days

@@ -1,11 +1,15 @@
 import { getAdminClient } from "@/lib/supabase/admin";
 import { UserTable } from "@/components/admin/UserTable";
 import type { User } from "@/types";
+import type { MessageRow } from "@/lib/handlers/messages";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const PAGE_SIZE = 50;
+// Per-user history cap shown in the admin viewer. Higher = more
+// scrolling, lower = miss recent context. 100 feels right for now.
+const MESSAGES_PER_USER = 100;
 
 export default async function UsersPage({
   searchParams,
@@ -27,6 +31,30 @@ export default async function UsersPage({
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  // Fetch messages for the users on this page in a single query, then
+  // group client-side. Cap at MESSAGES_PER_USER per user — rendered
+  // by the conversation viewer in UserTable when a row is expanded.
+  const messagesByUser: Record<string, MessageRow[]> = {};
+  if (users.length > 0) {
+    const userIds = users.map((u) => u.id);
+    const { data: msgRows } = await sb
+      .from("messages")
+      .select("*")
+      .in("user_id", userIds)
+      .order("created_at", { ascending: false })
+      .limit(MESSAGES_PER_USER * userIds.length);
+    for (const row of (msgRows ?? []) as MessageRow[]) {
+      if (!messagesByUser[row.user_id]) messagesByUser[row.user_id] = [];
+      if (messagesByUser[row.user_id].length < MESSAGES_PER_USER) {
+        messagesByUser[row.user_id].push(row);
+      }
+    }
+    // Reverse each user's list so oldest is first (natural reading order).
+    for (const k of Object.keys(messagesByUser)) {
+      messagesByUser[k].reverse();
+    }
+  }
+
   return (
     <div className="p-8 max-w-6xl">
       <div className="flex items-baseline justify-between">
@@ -43,7 +71,7 @@ export default async function UsersPage({
         <p className="mt-6 text-sm text-danger">{error.message}</p>
       ) : (
         <div className="mt-6 space-y-4">
-          <UserTable users={users} />
+          <UserTable users={users} messagesByUser={messagesByUser} />
           {totalPages > 1 ? (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">
