@@ -65,15 +65,31 @@ const TEXT_FALLBACK_NO_VOICE = `¡Hola! Soy Chia 🌿
 I'm going to teach you Spanish — I promise it'll feel nothing like school.
 What's your name?`;
 
+// Small pause between sends. Meta's media (image/audio) takes time
+// to process before delivery to the recipient. Without these pauses,
+// text — which has no media to process — overtakes voice/photo in the
+// delivery queue. The student then sees the "What's your name?" text
+// at the top, with photo/voice arriving below, and has to scroll up
+// to read the question. 1.5s is enough for Meta to deliver each
+// preceding message in order.
+const SEND_GAP_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function sendStep1(args: OnboardingArgs): Promise<void> {
-  // Three messages — photo, voice, text — sent in that order so the
-  // visual lands first, then the audible greeting, then the text +
-  // first question. WhatsApp doesn't strictly guarantee delivery
-  // order, but in practice this sequence usually arrives correctly.
+  // Three messages — photo, voice, text — sent in that order with
+  // small gaps so they arrive in order on the student's phone:
+  //   [photo]
+  //   [voice]
+  //   [text: "What's your name?"]   ← most recent, immediately visible
+  //
   // Each step is best-effort — failure of one doesn't block the others.
 
   // 1. Greeting photo (free for everyone — one-time premium teaser).
   await sendGreetingPhoto(args.userId, args.whatsappNumber);
+  await sleep(SEND_GAP_MS);
 
   // 2. Voice intro.
   let voiceSent = false;
@@ -84,8 +100,10 @@ async function sendStep1(args: OnboardingArgs): Promise<void> {
   } catch (err) {
     console.error("[onboarding] voice intro failed:", err);
   }
+  await sleep(SEND_GAP_MS);
 
-  // 3. Text — translation + first question.
+  // 3. Text — welcome + first question. This is the message the
+  // student needs to respond to, so it must be the LAST one delivered.
   await sendText(
     args.whatsappNumber,
     voiceSent ? TEXT_AFTER_VOICE : TEXT_FALLBACK_NO_VOICE,
