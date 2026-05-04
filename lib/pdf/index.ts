@@ -151,7 +151,7 @@ async function renderVerbConjugation(
   y -= 2 * (tenseBoxH + rowGap) + 8;
 
   // Examples section
-  page.drawText("In context", {
+  page.drawText(safe("In context"), {
     x: MARGIN,
     y,
     size: 12,
@@ -161,7 +161,7 @@ async function renderVerbConjugation(
   y -= 18;
 
   for (const [es, en] of data.examples) {
-    page.drawText(es, {
+    page.drawText(safe(es), {
       x: MARGIN,
       y,
       size: 11,
@@ -169,7 +169,7 @@ async function renderVerbConjugation(
       color: TEXT,
     });
     y -= 14;
-    page.drawText(en, {
+    page.drawText(safe(en), {
       x: MARGIN,
       y,
       size: 10,
@@ -206,7 +206,7 @@ async function renderVocabSheet(data: VocabSheet): Promise<Uint8Array> {
     }
 
     // section heading
-    page.drawText(section.heading, {
+    page.drawText(safe(section.heading), {
       x: MARGIN,
       y,
       size: 13,
@@ -231,7 +231,7 @@ async function renderVocabSheet(data: VocabSheet): Promise<Uint8Array> {
         y = PAGE_H - MARGIN - 20;
       }
       // Spanish
-      const esLines = wrapText(es, helvBold, 11, PAGE_W - 2 * MARGIN);
+      const esLines = wrapText(safe(es), helvBold, 11, PAGE_W - 2 * MARGIN);
       for (const line of esLines) {
         page.drawText(line, {
           x: MARGIN,
@@ -243,7 +243,7 @@ async function renderVocabSheet(data: VocabSheet): Promise<Uint8Array> {
         y -= 14;
       }
       // English
-      const enLines = wrapText(en, helvObl, 10, PAGE_W - 2 * MARGIN);
+      const enLines = wrapText(safe(en), helvObl, 10, PAGE_W - 2 * MARGIN);
       for (const line of enLines) {
         page.drawText(line, {
           x: MARGIN,
@@ -291,9 +291,13 @@ function drawHeader(
     color: ACCENT,
   });
 
-  // Brand mark + title block
+  // Brand mark + title block. Note: pdf-lib's StandardFonts only
+  // support WinAnsi (= Latin-1 plus Western extras), so emoji like
+  // 🌿 must be stripped via safe(). Brand remains "ChiaChat" in
+  // plain text on the PDF; the leaf lives in the web/WhatsApp brand
+  // surface only.
   let y = PAGE_H - MARGIN;
-  page.drawText("🌿 ChiaChat", {
+  page.drawText(safe("ChiaChat"), {
     x: MARGIN,
     y,
     size: 11,
@@ -302,7 +306,7 @@ function drawHeader(
   });
   y -= 28;
 
-  page.drawText(title, {
+  page.drawText(safe(title), {
     x: MARGIN,
     y,
     size: 28,
@@ -312,7 +316,7 @@ function drawHeader(
   y -= 22;
 
   // subtitle (wrap)
-  const subLines = wrapText(subtitle, reg, 11, PAGE_W - 2 * MARGIN);
+  const subLines = wrapText(safe(subtitle), reg, 11, PAGE_W - 2 * MARGIN);
   for (const line of subLines.slice(0, 2)) {
     page.drawText(line, {
       x: MARGIN,
@@ -349,7 +353,7 @@ function drawTenseBox(
     borderOpacity: 0.4,
   });
 
-  page.drawText(tense.name, {
+  page.drawText(safe(tense.name), {
     x: x + 12,
     y: y + h - 18,
     size: 10,
@@ -361,15 +365,17 @@ function drawTenseBox(
   const lineH = 13;
   for (const [pron, form] of tense.rows) {
     if (cy < y + 6) break;
-    page.drawText(pron, {
+    const safePron = safe(pron);
+    const safeForm = safe(form);
+    page.drawText(safePron, {
       x: x + 12,
       y: cy,
       size: 9,
       font: reg,
       color: MUTED,
     });
-    page.drawText(form, {
-      x: x + w - 12 - reg.widthOfTextAtSize(form, 10),
+    page.drawText(safeForm, {
+      x: x + w - 12 - reg.widthOfTextAtSize(safeForm, 10),
       y: cy,
       size: 10,
       font: bold,
@@ -380,7 +386,7 @@ function drawTenseBox(
 }
 
 function drawFooter(page: PDFPage, reg: PDFFont): void {
-  const text = "🌿 ChiaChat — Made in Valencia · chiachat.com";
+  const text = safe("ChiaChat — Made in Valencia · chiachat.com");
   const w = reg.widthOfTextAtSize(text, 9);
   page.drawText(text, {
     x: (PAGE_W - w) / 2,
@@ -389,6 +395,21 @@ function drawFooter(page: PDFPage, reg: PDFFont): void {
     font: reg,
     color: MUTED,
   });
+}
+
+// Strip characters that pdf-lib's StandardFonts can't encode.
+// WinAnsi = Latin-1 + Western extras (smart quotes, em/en dash, ©, ®, …)
+// Anything outside that — emoji, CJK, Hebrew, Arabic — gets dropped.
+// Spanish accents (á, é, í, ñ, etc.) and ¡¿ all pass through fine.
+function safe(text: string): string {
+  return text
+    .replace(
+      /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}]/gu,
+      "",
+    ) // emoji blocks
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "") // misc symbols + emoji
+    .replace(/\s{2,}/g, " ") // collapse whitespace from removed glyphs
+    .trim();
 }
 
 // Word-wrap a string to fit within `maxWidth` at the given font/size.
