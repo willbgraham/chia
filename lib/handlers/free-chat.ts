@@ -7,6 +7,7 @@ import { chiaTextTurn, chatCompletion } from "@/lib/messaging/openai";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
+import { accountUrl } from "@/lib/account/magic-link";
 
 interface FreeChatArgs {
   userId: string;
@@ -50,6 +51,14 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // upgrade, send them the Stripe payment link as a follow-up message.
   if (args.userPlan === "free" && wantsUpgrade(args.userMessage)) {
     await sendUpgradeLink(args.whatsappNumber, args.userId);
+  }
+
+  // Detect account-management intent — "cancel", "manage", "account",
+  // "support", etc. → send a magic link to /account/<token> where
+  // they can manage their plan, view what Chia knows about them, or
+  // contact support. Works for both free and premium.
+  if (wantsAccount(args.userMessage)) {
+    await sendAccountLink(args.whatsappNumber, args.userId, args.userPlan);
   }
 
   // Audio confirmation flow runs ONLY for premium users. For free users
@@ -145,6 +154,60 @@ function wantsUpgrade(message: string): boolean {
     "want premium",
   ];
   return triggers.some((kw) => t.includes(kw));
+}
+
+// Account-management intent — cancel / manage / billing / support /
+// contact. Trigger words tuned to be specific enough that casual chat
+// won't false-positive (e.g., "I love my account in Madrid" wouldn't
+// trigger because "account" alone isn't enough; we look for paired
+// signals).
+function wantsAccount(message: string): boolean {
+  const t = message.toLowerCase();
+  // Strong single-word signals — anyone who types these almost
+  // certainly wants account/support.
+  const strongTriggers = [
+    "cancel subscription",
+    "cancel my subscription",
+    "cancel my plan",
+    "unsubscribe",
+    "cancel premium",
+    "manage subscription",
+    "manage my account",
+    "my account",
+    "account settings",
+    "billing",
+    "contact support",
+    "customer support",
+    "support please",
+    "i want to cancel",
+    "i need help with my account",
+    "delete my data",
+    "delete my account",
+  ];
+  if (strongTriggers.some((kw) => t.includes(kw))) return true;
+  // Weak triggers only fire when paired with an explicit command verb.
+  const cancelLike = /\b(cancel|unsubscribe|stop)\b/.test(t);
+  const accountLike = /\b(account|subscription|plan|billing|premium)\b/.test(
+    t,
+  );
+  return cancelLike && accountLike;
+}
+
+async function sendAccountLink(
+  whatsappNumber: string,
+  userId: string,
+  userPlan: "free" | "premium",
+): Promise<void> {
+  const url = accountUrl(userId);
+  const support = process.env.SUPPORT_EMAIL ?? "support@chiachat.com";
+  const intro =
+    userPlan === "premium"
+      ? "Aquí está tu cuenta 🌿\n(Here's your account)"
+      : "Aquí está tu cuenta 🌿\n(Here's your account — you can also upgrade from there.)";
+  await sendText(
+    whatsappNumber,
+    `${intro}\n\nManage subscription, see what I remember about you, or contact support:\n\n${url}\n\n_(Link valid for 24 hours. Need a fresh one? Just message me "account".)_\n\nSupport: ${support}`,
+  );
 }
 
 async function sendUpgradeLink(
