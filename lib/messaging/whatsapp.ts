@@ -92,6 +92,32 @@ export async function sendImage(
   return parseSendResponse(res);
 }
 
+// Send a PDF document. URL must be publicly fetchable by Meta. Filename
+// is what the recipient sees in their WhatsApp media gallery; pick
+// something descriptive (e.g., "ser-conjugation.pdf"). Optional caption
+// shows above the document tile.
+export async function sendDocument(
+  toNumber: string,
+  documentUrl: string,
+  filename: string,
+  caption?: string,
+): Promise<SendResult> {
+  const res = await fetch(endpoint(`${phoneNumberId()}/messages`), {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipient(toNumber),
+      type: "document",
+      document: caption
+        ? { link: documentUrl, filename, caption }
+        : { link: documentUrl, filename },
+    }),
+  });
+  return parseSendResponse(res);
+}
+
 interface TemplateVariable {
   type: "text";
   text: string;

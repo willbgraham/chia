@@ -2,7 +2,7 @@
 // + recent messages, send the response. If the response offers audio, store
 // the target phrase in pending_phrase and switch state.
 
-import { sendText, sendImage } from "@/lib/messaging/whatsapp";
+import { sendText, sendImage, sendDocument } from "@/lib/messaging/whatsapp";
 import { chiaTextTurn, chatCompletion } from "@/lib/messaging/openai";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory, patchMemory } from "@/lib/handlers/memory";
@@ -11,6 +11,11 @@ import { accountUrl } from "@/lib/account/magic-link";
 import { pickContextualPhoto } from "@/lib/handlers/photo-pick";
 import { logMessage, findRelevantMessages } from "@/lib/handlers/messages";
 import { handleLesson, advanceCurriculum } from "@/lib/handlers/lesson";
+import {
+  maybeWantsPDF,
+  pickPDFForRequest,
+} from "@/lib/handlers/pdf-pick";
+import { getOrGeneratePDF } from "@/lib/handlers/pdf-cache";
 
 interface FreeChatArgs {
   userId: string;
@@ -100,6 +105,48 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
         state: "awaiting_audio_confirm",
         pending_phrase: phrase,
       });
+    }
+  }
+
+  // PDF document delivery (premium only). Cheap regex pre-filter
+  // skips the GPT classifier on most turns. When a student asks for
+  // a cheat sheet / conjugation table / pickup lines etc., the
+  // classifier picks the best match from the catalog and the PDF
+  // gets sent via Meta sendDocument. Free users see a soft nudge
+  // pointing at the upgrade page.
+  if (maybeWantsPDF(args.userMessage)) {
+    if (args.userPlan === "premium") {
+      try {
+        const pick = await pickPDFForRequest(args.userMessage);
+        if (pick) {
+          const pdf = await getOrGeneratePDF(pick.kind, pick.subject);
+          await sendDocument(
+            args.whatsappNumber,
+            pdf.publicUrl,
+            pdf.filename,
+          );
+          await logMessage({
+            userId: args.userId,
+            role: "assistant",
+            content: `[pdf: ${pick.kind}/${pick.subject}]`,
+          });
+        }
+      } catch (err) {
+        console.error("[free-chat] pdf send failed:", err);
+      }
+    } else {
+      // Free user asked for a PDF — soft nudge, no link in chat
+      // (the free-plan-guard nudge already added "type 'upgrade'"
+      // earlier in this turn if it stripped an audio offer).
+      // We add an explicit nudge here too because PDFs come up less
+      // often and the student just made a specific request.
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
+      const upgradeUrl = `${baseUrl.replace(/\/+$/, "")}/upgrade?ref=${encodeURIComponent(args.userId)}`;
+      await sendText(
+        args.whatsappNumber,
+        `Cheat sheets are part of Premium 🌿 — €25/month gets you PDFs, voice, and pronunciation:\n\n${upgradeUrl}`,
+      );
     }
   }
 
