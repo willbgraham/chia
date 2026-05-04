@@ -1,0 +1,280 @@
+{
+  "_comment": "Source content for the PDFs Chia sends students. Each top-level key is a 'kind'; each nested key under it is a 'subject'. To add a new PDF: add an entry here, ensure lib/pdf/index.ts has a generator for the kind, then preview at /admin/pdfs.",
+
+  "verb_conjugations": {
+    "ser": {
+      "title": "SER",
+      "subtitle": "to be (permanent: identity, origin, time, profession)",
+      "tenses": [
+        {
+          "name": "Present",
+          "rows": [
+            ["yo", "soy"],
+            ["tú", "eres"],
+            ["él / ella / usted", "es"],
+            ["nosotros", "somos"],
+            ["vosotros", "sois"],
+            ["ellos / ellas / ustedes", "son"]
+          ]
+        },
+        {
+          "name": "Preterite",
+          "rows": [
+            ["yo", "fui"],
+            ["tú", "fuiste"],
+            ["él / ella / usted", "fue"],
+            ["nosotros", "fuimos"],
+            ["vosotros", "fuisteis"],
+            ["ellos / ellas / ustedes", "fueron"]
+          ]
+        },
+        {
+          "name": "Imperfect",
+          "rows": [
+            ["yo", "era"],
+            ["tú", "eras"],
+            ["él / ella / usted", "era"],
+            ["nosotros", "éramos"],
+            ["vosotros", "erais"],
+            ["ellos / ellas / ustedes", "eran"]
+          ]
+        },
+        {
+          "name": "Future",
+          "rows": [
+            ["yo", "seré"],
+            ["tú", "serás"],
+            ["él / ella / usted", "será"],
+            ["nosotros", "seremos"],
+            ["vosotros", "seréis"],
+            ["ellos / ellas / ustedes", "serán"]
+          ]
+        }
+      ],
+      "examples": [
+        ["Soy de Valencia.", "I'm from Valencia."],
+        ["Es médica.", "She's a doctor."],
+        ["Son las dos.", "It's two o'clock."],
+        ["Era pequeño.", "He was small (back then)."]
+      ]
+    },
+    "estar": {
+      "title": "ESTAR",
+      "subtitle": "to be (temporary: location, mood, ongoing state)",
+      "tenses": [
+        {
+          "name": "Present",
+          "rows": [
+            ["yo", "estoy"],
+            ["tú", "estás"],
+            ["él / ella / usted", "está"],
+            ["nosotros", "estamos"],
+            ["vosotros", "estáis"],
+            ["ellos / ellas / ustedes", "están"]
+          ]
+        },
+        {
+          "name": "Preterite",
+          "rows": [
+            ["yo", "estuve"],
+            ["tú", "estuviste"],
+            ["él / ella / usted", "estuvo"],
+            ["nosotros", "estuvimos"],
+            ["vosotros", "estuvisteis"],
+            ["ellos / ellas / ustedes", "estuvieron"]
+          ]
+        },
+        {
+          "name": "Imperfect",
+          "rows": [
+            ["yo", "estaba"],
+            ["tú", "estabas"],
+            ["él / ella / usted", "estaba"],
+            ["nosotros", "estábamos"],
+            ["vosotros", "estabais"],
+            ["ellos / ellas / ustedes", "estaban"]
+          ]
+        },
+        {
+          "name": "Future",
+          "rows": [
+            ["yo", "estaré"],
+            ["tú", "estarás"],
+            ["él / ella / usted", "estará"],
+            ["nosotros", "estaremos"],
+            ["vosotros", "estaréis"],
+            ["ellos / ellas / ustedes", "estarán"]
+          ]
+        }
+      ],
+      "examples": [
+        ["Estoy cansado.", "I'm tired (right now)."],
+        ["Estamos en Madrid.", "We're in Madrid."],
+        ["¿Cómo estás?", "How are you?"],
+        ["Estaba durmiendo.", "I was sleeping."]
+      ]
+    },
+    "tener": {
+      "title": "TENER",
+      "subtitle": "to have — used for possession, age, sensations (tengo hambre, tengo años)",
+      "tenses": [
+        {
+          "name": "Present",
+          "rows": [
+            ["yo", "tengo"],
+            ["tú", "tienes"],
+            ["él / ella / usted", "tiene"],
+            ["nosotros", "tenemos"],
+            ["vosotros", "tenéis"],
+            ["ellos / ellas / ustedes", "tienen"]
+          ]
+        },
+        {
+          "name": "Preterite",
+          "rows": [
+            ["yo", "tuve"],
+            ["tú", "tuviste"],
+            ["él / ella / usted", "tuvo"],
+            ["nosotros", "tuvimos"],
+            ["vosotros", "tuvisteis"],
+            ["ellos / ellas / ustedes", "tuvieron"]
+          ]
+        },
+        {
+          "name": "Imperfect",
+          "rows": [
+            ["yo", "tenía"],
+            ["tú", "tenías"],
+            ["él / ella / usted", "tenía"],
+            ["nosotros", "teníamos"],
+            ["vosotros", "teníais"],
+            ["ellos / ellas / ustedes", "tenían"]
+          ]
+        },
+        {
+          "name": "Future",
+          "rows": [
+            ["yo", "tendré"],
+            ["tú", "tendrás"],
+            ["él / ella / usted", "tendrá"],
+            ["nosotros", "tendremos"],
+            ["vosotros", "tendréis"],
+            ["ellos / ellas / ustedes", "tendrán"]
+          ]
+        }
+      ],
+      "examples": [
+        ["Tengo hambre.", "I'm hungry. (lit. I have hunger)"],
+        ["Tiene 30 años.", "She's 30 years old."],
+        ["Teníamos que irnos.", "We had to leave."],
+        ["¿Tienes un momento?", "Do you have a moment?"]
+      ]
+    }
+  },
+
+  "vocab_sheets": {
+    "dating": {
+      "title": "Dating in Spanish",
+      "subtitle": "Phrases that actually work — from first hello to first kiss.",
+      "sections": [
+        {
+          "heading": "Opening lines",
+          "rows": [
+            ["¿Qué tomas?", "What are you drinking?"],
+            ["¿Vienes mucho por aquí?", "Do you come here often?"],
+            ["¿Te invito a algo?", "Can I get you something?"],
+            ["No nos conocemos, ¿verdad?", "We haven't met, have we?"]
+          ]
+        },
+        {
+          "heading": "Showing interest",
+          "rows": [
+            ["Eres muy guapa / guapo.", "You're really good-looking."],
+            ["Me encanta tu sonrisa.", "I love your smile."],
+            ["Tienes una mirada increíble.", "You have an incredible look in your eyes."],
+            ["Eres muy mi tipo.", "You're really my type."]
+          ]
+        },
+        {
+          "heading": "Asking them out",
+          "rows": [
+            ["¿Tomamos algo otro día?", "Want to grab a drink another day?"],
+            ["¿Me das tu número?", "Can I have your number?"],
+            ["¿Cenamos juntos?", "Want to have dinner together?"],
+            ["¿Quedamos esta semana?", "Want to meet up this week?"]
+          ]
+        },
+        {
+          "heading": "Getting closer",
+          "rows": [
+            ["Estoy muy a gusto contigo.", "I feel really good with you."],
+            ["¿Puedo besarte?", "Can I kiss you?"],
+            ["Me gustas mucho.", "I really like you."],
+            ["Vienes conmigo a casa?", "Want to come home with me?"]
+          ]
+        }
+      ]
+    },
+    "pickup_lines": {
+      "title": "Piropos clásicos",
+      "subtitle": "Spanish pickup lines. Use with confidence and a smile — half of them are intentionally cheesy.",
+      "sections": [
+        {
+          "heading": "Cheesy classics",
+          "rows": [
+            ["¿Tienes mapa? Es que me he perdido en tus ojos.", "Do you have a map? I got lost in your eyes."],
+            ["¿Te dolió cuando caíste del cielo?", "Did it hurt when you fell from heaven?"],
+            ["Si la belleza fuera delito, ya estarías en la cárcel.", "If beauty were a crime, you'd already be in jail."],
+            ["¿Crees en el amor a primera vista o tengo que pasar otra vez?", "Believe in love at first sight, or do I need to walk by again?"]
+          ]
+        },
+        {
+          "heading": "Flirty + cheeky",
+          "rows": [
+            ["Me gustaría ser bizco para mirarte con los dos ojos.", "I wish I were cross-eyed so I could look at you with both eyes at once."],
+            ["Tantas curvas, y yo sin frenos.", "So many curves, and me with no brakes."],
+            ["¿Tu padre es ladrón? Porque robó las estrellas para ponerlas en tus ojos.", "Is your dad a thief? He stole the stars and put them in your eyes."],
+            ["Si fueras un libro, no te dejaría hasta el final.", "If you were a book, I wouldn't put you down until the end."]
+          ]
+        },
+        {
+          "heading": "More direct (use sparingly)",
+          "rows": [
+            ["Estoy perdido. ¿Puedes guiarme a tu corazón?", "I'm lost. Can you guide me to your heart?"],
+            ["Se me olvidó tu nombre — ¿me lo dices con un beso?", "I forgot your name — could you tell me with a kiss?"],
+            ["Si Cristóbal Colón te viera, diría: ¡tierra a la vista!", "If Columbus saw you, he'd say: land ahoy!"]
+          ]
+        }
+      ]
+    },
+    "dirty_jokes": {
+      "title": "Chistes verdes en español",
+      "subtitle": "Spanish 'dirty' jokes — most are double-entendres rather than crude. Reading these in Spanish is great pronunciation practice; using them at dinner with new in-laws is at your own risk.",
+      "sections": [
+        {
+          "heading": "Plays on words",
+          "rows": [
+            ["—Doctor, no puedo hacer pis. —¿Cuántos años tiene? —98. —Ya ha hecho usted bastante.", "—Doctor, I can't pee anymore. —How old are you? —98. —You've peed enough."],
+            ["—Mamá, ¿cómo nací yo? —Te trajo la cigüeña. —¿Y mis hermanos? —También. —¡Qué activa la cigüeña!", "—Mom, how was I born? —The stork brought you. —And my siblings? —Same. —Busy stork!"],
+            ["¿Qué hace una abeja en el gimnasio? Zum-ba.", "What does a bee do at the gym? Zum-ba. (zumba = both the workout and 'buzz')"]
+          ]
+        },
+        {
+          "heading": "Wordplay with curse words (mild)",
+          "rows": [
+            ["Estoy hasta los cojones — y con las pelotas hinchadas.", "I'm fed up — and my balls are swollen. (idiom + literal at once)"],
+            ["No tengo pelos en la lengua, ¡pero sí en otros sitios!", "I don't have hair on my tongue (= I'm blunt) — but I do elsewhere!"]
+          ]
+        },
+        {
+          "heading": "Classic short ones",
+          "rows": [
+            ["—¿Cuál es el animal más viejo? —La cebra. Está en blanco y negro.", "—What's the oldest animal? —The zebra. It's in black and white."],
+            ["—¿Por qué los peces no van a la escuela? —Porque ya están en el escuelo. (banco)", "—Why don't fish go to school? —They're already in 'el escuelo.' (banco = school of fish AND bank — wordplay)"],
+            ["¿Cómo se dice 'pañuelo' en chino? Sun-Su-Mo-Co.", "How do you say 'tissue' in Chinese? 'Blow-your-nose.'"]
+          ]
+        }
+      ]
+    }
+  }
+}

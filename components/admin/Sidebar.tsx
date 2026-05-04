@@ -7,6 +7,7 @@ import {
   Users,
   GraduationCap,
   BookOpen,
+  FileText,
   LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +17,7 @@ const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/teachers", label: "Teachers", icon: GraduationCap },
   { href: "/admin/lessons", label: "Lessons", icon: BookOpen },
+  { href: "/admin/pdfs", label: "PDFs", icon: FileText },
   { href: "/admin/users", label: "Users", icon: Users },
 ];
 
