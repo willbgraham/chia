@@ -119,7 +119,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // If the user just upgraded mid-onboarding, advance them out of step 7.
   await advancePostUpgrade(user.id);
 
-  await sendReactivationMessage(user.whatsapp_number);
+  await sendReactivationMessage(user.id, user.whatsapp_number);
 }
 
 async function advancePostUpgrade(userId: string): Promise<void> {
@@ -214,17 +214,74 @@ async function handleSubscriptionCancelled(sub: Stripe.Subscription) {
 }
 
 // After a successful upgrade, send Chia's reactivation message directly
-// via Meta WhatsApp Cloud API. Best-effort — the upgrade itself already
-// succeeded, so a failure here just means the user doesn't get the
-// celebratory message.
-async function sendReactivationMessage(whatsappNumber: string) {
+// via Meta WhatsApp Cloud API + log it to BOTH the rolling memory_json._recent
+// buffer (so Chia's next GPT turn sees that the plan changed) and the
+// persistent messages table (so admin viewer shows the upgrade moment).
+//
+// Without this dual-write, Chia's recent-conversation context still
+// showed free-mode replies and GPT kept the free-tier style even after
+// users.plan was flipped — leading to bugs like "Chia says she can't
+// send photos" even though server-side userPlan = premium.
+async function sendReactivationMessage(
+  userId: string,
+  whatsappNumber: string,
+) {
+  // Explicit, Spanish-first welcome that clearly marks the plan change.
+  // The "[Plan: free → premium]" tag is a deliberate signal Chia's GPT
+  // sees in [LAST_20_MESSAGES] on the next turn — pushes her to drop
+  // the locked-feature framing and behave as a premium teacher.
+  const text =
+    "¡Bienvenido a Premium! 🌿✨ Ahora podemos hacer todo: notas de voz, " +
+    "fotos, PDFs, lo que quieras. (Welcome to Premium! Now we can do " +
+    "everything: voice notes, photos, PDFs, anything you want.) " +
+    "¿Empezamos con una nota de voz? 🎵";
+
   try {
     const { sendText } = await import("@/lib/messaging/whatsapp");
-    await sendText(
-      whatsappNumber,
-      "¡Estás de vuelta! 🎉 Now we can talk as much as we want — including voice practice 🎵 Where were we...? 😊",
-    );
+    await sendText(whatsappNumber, text);
   } catch (err) {
     console.error("[stripe webhook] reactivation send failed:", err);
+  }
+
+  // Log to messages table so admin viewer + future pgvector retrieval
+  // pick this up.
+  try {
+    const { logMessage } = await import("@/lib/handlers/messages");
+    await logMessage({
+      userId,
+      role: "assistant",
+      content: `[PLAN_CHANGE: free → premium]\n\n${text}`,
+    });
+  } catch (err) {
+    console.error("[stripe webhook] logMessage on reactivation failed:", err);
+  }
+
+  // Also append to the rolling buffer in memory_json._recent so it
+  // shows up in the very next GPT turn's [LAST_20_MESSAGES] context.
+  // This is the fix for "Chia keeps acting like free after upgrade":
+  // without this, her recent context is entirely free-mode replies.
+  try {
+    const sb = getAdminClient();
+    const { data: row } = await sb
+      .from("users")
+      .select("memory_json")
+      .eq("id", userId)
+      .single();
+    const memory =
+      (row?.memory_json as {
+        _recent?: { role: string; content: string }[];
+      } | null) ?? {};
+    const buf = Array.isArray(memory._recent) ? memory._recent : [];
+    buf.push({
+      role: "assistant",
+      content: `[PLAN_CHANGE: free → premium]\n${text}`,
+    });
+    const trimmed = buf.slice(-20);
+    await sb
+      .from("users")
+      .update({ memory_json: { ...memory, _recent: trimmed } })
+      .eq("id", userId);
+  } catch (err) {
+    console.error("[stripe webhook] memory_json buffer update failed:", err);
   }
 }
