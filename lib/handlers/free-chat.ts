@@ -16,6 +16,11 @@ import {
   pickPDFForRequest,
 } from "@/lib/handlers/pdf-pick";
 import { getOrGeneratePDF } from "@/lib/handlers/pdf-cache";
+import {
+  getCurriculumForUser,
+  formatCurriculumForChat,
+  formatProgressForChat,
+} from "@/lib/handlers/curriculum";
 
 interface FreeChatArgs {
   userId: string;
@@ -33,6 +38,19 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // arriving as a separate message.
   if (wantsNextLesson(args.userMessage)) {
     await startOrAdvanceLesson(args);
+    return;
+  }
+
+  // Curriculum overview intents: "what are we learning" / "show me
+  // the curriculum" / "what's left" → curriculum list.
+  if (wantsCurriculumOverview(args.userMessage)) {
+    await sendCurriculumOverview(args);
+    return;
+  }
+  // "What have I learned" / "my progress" / "how am I doing" →
+  // progress summary.
+  if (wantsProgressSummary(args.userMessage)) {
+    await sendProgressSummary(args);
     return;
   }
 
@@ -280,6 +298,84 @@ function wantsNextLesson(message: string): boolean {
     "teach me something",
   ];
   return triggers.some((kw) => t.includes(kw));
+}
+
+// "Show me what we're going to learn" — overview of the full
+// curriculum at the student's level, with completed lessons + the
+// current pointer highlighted.
+function wantsCurriculumOverview(message: string): boolean {
+  const t = message.toLowerCase();
+  const triggers = [
+    "show me the curriculum",
+    "show me the lessons",
+    "what's the curriculum",
+    "what are we learning",
+    "what will we learn",
+    "what's the syllabus",
+    "syllabus",
+    "what's left",
+    "what's next",
+    "what are we going to cover",
+    "what topics",
+    "full course",
+    "course outline",
+    "the curriculum",
+  ];
+  return triggers.some((kw) => t.includes(kw));
+}
+
+async function sendCurriculumOverview(args: FreeChatArgs): Promise<void> {
+  const memory = await getMemory(args.userId);
+  const level = memory.level ?? "beginner";
+  const lessons = await getCurriculumForUser(args.userId, level);
+  const text = formatCurriculumForChat(lessons, level);
+  await sendText(args.whatsappNumber, text);
+  await logMessage({
+    userId: args.userId,
+    role: "user",
+    content: args.userMessage,
+  });
+  await logMessage({
+    userId: args.userId,
+    role: "assistant",
+    content: text,
+  });
+}
+
+// "What have I learned" — short summary of progress.
+function wantsProgressSummary(message: string): boolean {
+  const t = message.toLowerCase();
+  const triggers = [
+    "what have i learned",
+    "my progress",
+    "how am i doing",
+    "how am i progressing",
+    "what i've covered",
+    "what we've covered",
+    "show me my progress",
+    "where am i at",
+    "lessons done",
+    "lessons completed",
+  ];
+  return triggers.some((kw) => t.includes(kw));
+}
+
+async function sendProgressSummary(args: FreeChatArgs): Promise<void> {
+  const memory = await getMemory(args.userId);
+  const level = memory.level ?? "beginner";
+  const lessons = await getCurriculumForUser(args.userId, level);
+  const text = formatProgressForChat(lessons, level);
+  await sendText(args.whatsappNumber, text);
+  await logMessage({
+    userId: args.userId,
+    role: "user",
+    content: args.userMessage,
+  });
+  await logMessage({
+    userId: args.userId,
+    role: "assistant",
+    content: text,
+  });
 }
 
 // Bridge from free-chat to structured-lesson mode. If the student has

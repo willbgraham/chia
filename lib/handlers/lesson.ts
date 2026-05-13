@@ -88,13 +88,42 @@ export async function handleLesson(args: LessonArgs): Promise<void> {
   }
 }
 
-// Mark the current lesson complete, advance curriculum_position to the next.
+// Mark the current lesson complete in user_lesson_progress, then
+// advance curriculum_position to the next lesson (same topic if more
+// remain, otherwise next topic). Idempotent — marking a lesson done
+// twice is a no-op.
 export async function advanceCurriculum(userId: string): Promise<void> {
   const memory = await getMemory(userId);
   const pos = memory.curriculum_position;
   if (!pos) return;
 
   const sb = getAdminClient();
+
+  // Record current lesson as completed in user_lesson_progress.
+  if (pos.current_topic && pos.current_lesson) {
+    const { data: currentLesson } = await sb
+      .from("lessons")
+      .select("id")
+      .eq("language", "Spanish")
+      .eq("level", memory.level ?? "beginner")
+      .eq("topic", pos.current_topic)
+      .eq("lesson_number", pos.current_lesson)
+      .maybeSingle();
+    if (currentLesson?.id) {
+      await sb
+        .from("user_lesson_progress")
+        .upsert(
+          {
+            user_id: userId,
+            lesson_id: currentLesson.id,
+            status: "completed",
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,lesson_id", ignoreDuplicates: false },
+        );
+    }
+  }
+
   // Find the next lesson in this topic; if none, advance topic.
   const { data: nextInTopic } = await sb
     .from("lessons")
