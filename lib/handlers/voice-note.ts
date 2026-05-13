@@ -1,11 +1,20 @@
-// Voice-note handler — pronunciation correction loop.
+// Voice-note handler — two flows:
 //
-// 1. Download the audio from Meta's media URL
-// 2. Transcribe via OpenAI Whisper
-// 3. Compare transcription to pending_phrase via GPT (Chia's voice)
-// 4. Send Chia's correction text via WhatsApp
-// 5. Generate corrective TTS audio via ElevenLabs and send (if premium + within quota)
-// 6. Reset state to active_*
+// A. Pronunciation correction (state = awaiting_voice_note)
+//    1. Download audio from Meta
+//    2. Transcribe via Whisper
+//    3. Compare transcription to pending_phrase via GPT
+//    4. Send warm correction text
+//    5. Optional: corrective TTS audio (premium + within quota)
+//    6. Reset state to active_free_chat
+//
+// B. Conversational voice (any other active state)
+//    1. Download audio + transcribe via Whisper (es language hint)
+//    2. Hand the transcription to handleFreeChat as if the
+//       student had typed it — Chia replies normally in her voice
+//    Cost: ~$0.001-0.003 per voice note (Whisper @ $0.006/min).
+//    Worth enabling for everyone — students expect WhatsApp voice
+//    notes to "just work".
 
 import {
   sendText,
@@ -20,6 +29,7 @@ import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { logAudioUsage, isWithinLimit } from "@/lib/handlers/usage";
 import { logMessage } from "@/lib/handlers/messages";
+import { handleFreeChat } from "@/lib/handlers/free-chat";
 import type { ConversationStateName, MemoryJson, Plan } from "@/types";
 
 interface VoiceNoteArgs {
@@ -35,10 +45,8 @@ interface VoiceNoteArgs {
 
 export async function handleVoiceNote(args: VoiceNoteArgs): Promise<void> {
   if (args.currentState !== "awaiting_voice_note") {
-    await sendText(
-      args.whatsappNumber,
-      "I got your voice note 🌿 For now I'm best with text — ask me anything you want to learn?",
-    );
+    // Conversational voice path — transcribe and forward to free chat.
+    await handleConversationalVoice(args);
     return;
   }
   if (!args.pendingPhrase) {
@@ -141,6 +149,69 @@ export async function handleVoiceNote(args: VoiceNoteArgs): Promise<void> {
     state: "active_free_chat",
     pending_phrase: null,
     pending_audio_url: null,
+  });
+}
+
+// Voice note arrived while student was in normal chat (not a
+// pronunciation drill). Transcribe via Whisper and forward the
+// resulting text to the free-chat handler so Chia replies in her
+// normal voice. Whisper cost ≈ $0.001-0.003 per voice note —
+// negligible per active user per month.
+async function handleConversationalVoice(args: VoiceNoteArgs): Promise<void> {
+  // Download + transcribe.
+  const mediaUrl = await fetchMediaUrl(args.audioMediaId);
+  if (!mediaUrl) {
+    await sendText(
+      args.whatsappNumber,
+      "Couldn't grab your voice note from WhatsApp — try sending it again? 🌿",
+    );
+    return;
+  }
+  let audio: ArrayBuffer;
+  try {
+    audio = await downloadMedia(mediaUrl);
+  } catch (err) {
+    console.error("[voice-note] download failed:", err);
+    await sendText(
+      args.whatsappNumber,
+      "Couldn't download your voice note 🌿 Try sending it again?",
+    );
+    return;
+  }
+
+  let transcription: string;
+  try {
+    // Whisper does well auto-detecting language; hinting "es" biases
+    // it for Spanish but doesn't lock it (students often speak in
+    // English about Spanish).
+    transcription = await transcribeAudio(audio, { language: "es" });
+  } catch (err) {
+    console.error("[voice-note] transcription failed:", err);
+    await sendText(
+      args.whatsappNumber,
+      "I couldn't quite hear that 🌿 Try recording again somewhere quieter?",
+    );
+    return;
+  }
+
+  const text = transcription.trim();
+  if (!text) {
+    await sendText(
+      args.whatsappNumber,
+      "Your voice note came through silent on my end 🌿 Try recording again?",
+    );
+    return;
+  }
+
+  // Hand off to free-chat as if they'd typed it. The handler already
+  // logs the message to messages table (with appropriate role=user)
+  // and handles plan-gating, photo dispatch, etc.
+  await handleFreeChat({
+    userId: args.userId,
+    whatsappNumber: args.whatsappNumber,
+    teacherId: args.teacherId,
+    userPlan: args.userPlan,
+    userMessage: text,
   });
 }
 
