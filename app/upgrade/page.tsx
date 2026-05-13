@@ -49,20 +49,37 @@ async function fetchChia(): Promise<ChiaInfo | null> {
   }
 }
 
-function buildStripeLink(ref: string | undefined): string {
+// Compose the Stripe checkout link with optional client_reference_id
+// (so the webhook flips the right user to premium) and optional
+// prefilled promo code (so a launch discount auto-applies without the
+// student having to type it).
+//
+// Promo precedence: ?promo= URL param wins over env default, so per-
+// link overrides ("LAUNCH50" vs "WINBACK20") are possible by sending
+// a different link in Chia's message.
+function buildStripeLink(
+  ref: string | undefined,
+  promoOverride: string | undefined,
+): string {
   if (!STRIPE_LINK) return "#";
-  if (!ref) return STRIPE_LINK;
+  const params: string[] = [];
+  if (ref) params.push(`client_reference_id=${encodeURIComponent(ref)}`);
+  const promo = promoOverride ?? process.env.STRIPE_PREFILLED_PROMO_CODE ?? "";
+  if (promo) {
+    params.push(`prefilled_promo_code=${encodeURIComponent(promo)}`);
+  }
+  if (params.length === 0) return STRIPE_LINK;
   const sep = STRIPE_LINK.includes("?") ? "&" : "?";
-  return `${STRIPE_LINK}${sep}client_reference_id=${encodeURIComponent(ref)}`;
+  return `${STRIPE_LINK}${sep}${params.join("&")}`;
 }
 
 export default async function UpgradePage({
   searchParams,
 }: {
-  searchParams: { ref?: string };
+  searchParams: { ref?: string; promo?: string };
 }) {
   const chia = await fetchChia();
-  const checkoutUrl = buildStripeLink(searchParams.ref);
+  const checkoutUrl = buildStripeLink(searchParams.ref, searchParams.promo);
 
   return (
     <main className="min-h-screen bg-bg text-text">
