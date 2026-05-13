@@ -166,6 +166,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userPlan: user.plan,
         billingPeriodStart: user.billing_period_start,
         userMessage: msg.textBody,
+        teacherId: user.teacher_id,
       });
       return;
 

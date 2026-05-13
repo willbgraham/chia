@@ -7,6 +7,7 @@ import { getOrCreateAudio } from "@/lib/messaging/audio-cache";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { updateState } from "@/lib/handlers/state";
 import { logAudioUsage, isWithinLimit } from "@/lib/handlers/usage";
+import { handleFreeChat } from "@/lib/handlers/free-chat";
 import type { Plan } from "@/types";
 
 interface AudioConfirmArgs {
@@ -16,19 +17,45 @@ interface AudioConfirmArgs {
   userPlan: Plan;
   billingPeriodStart: string | null;
   userMessage: string;
+  // Needed to forward to handleFreeChat when the student changes
+  // subject instead of saying yes/no.
+  teacherId: string | null;
 }
 
 export async function handleAudioConfirm(args: AudioConfirmArgs): Promise<void> {
   const yes = parseYes(args.userMessage);
+  const explicitNo = parseNo(args.userMessage);
 
-  if (!yes) {
-    await sendText(
-      args.whatsappNumber,
-      "No worries 🌿 we'll keep texting. What else?",
-    );
+  // Explicit "no" / "no thanks" / "not now" → soft acknowledge,
+  // back to free chat. We DON'T forward this to handleFreeChat
+  // because there's nothing more to answer.
+  if (explicitNo) {
+    await sendText(args.whatsappNumber, "Vale, no pasa nada 🌿 (No problem!)");
     await updateState(args.userId, {
       state: "active_free_chat",
       pending_phrase: null,
+    });
+    return;
+  }
+
+  // Anything else that's not a clear yes (e.g., "what's next on the
+  // lesson?", "tell me about Valencia", "quiz me") is a subject
+  // change — the student isn't engaging with the audio offer. Reset
+  // state and route their message through handleFreeChat so Chia
+  // answers the actual question. This kills the old bug where Chia
+  // dropped the student's reply on the floor with a dead-end
+  // "No worries 🌿 we'll keep texting" message.
+  if (!yes) {
+    await updateState(args.userId, {
+      state: "active_free_chat",
+      pending_phrase: null,
+    });
+    await handleFreeChat({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      teacherId: args.teacherId,
+      userPlan: args.userPlan,
+      userMessage: args.userMessage,
     });
     return;
   }
@@ -146,4 +173,24 @@ function parseYes(msg: string): boolean {
     t.includes("🎵") ||
     t.startsWith("yes")
   );
+}
+
+// Explicit "no" — short, decisive negative answers. Anything more
+// complex (subject change, follow-up question) is NOT a no, and
+// should be forwarded to handleFreeChat instead.
+function parseNo(msg: string): boolean {
+  const t = msg.trim().toLowerCase();
+  const exact = new Set([
+    "no",
+    "nope",
+    "nah",
+    "no thanks",
+    "no thank you",
+    "not now",
+    "skip",
+    "later",
+    "maybe later",
+    "pass",
+  ]);
+  return exact.has(t);
 }
