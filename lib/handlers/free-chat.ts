@@ -53,6 +53,13 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
     await sendProgressSummary(args);
     return;
   }
+  // "Where were we" / "continue lesson" / "pick up" → resume the
+  // current lesson without advancing (vs. wantsNextLesson which
+  // advances past it).
+  if (wantsResumeLesson(args.userMessage)) {
+    await resumeCurrentLesson(args);
+    return;
+  }
 
   const memory = await getMemory(args.userId);
 
@@ -375,6 +382,60 @@ async function sendProgressSummary(args: FreeChatArgs): Promise<void> {
     userId: args.userId,
     role: "assistant",
     content: text,
+  });
+}
+
+// "Where were we" / "continue" / "pick up" — resume the lesson the
+// student was on without advancing. Useful after wandering into free
+// chat and wanting to get back on track. Differs from wantsNextLesson
+// (which ALWAYS advances to the next lesson).
+function wantsResumeLesson(message: string): boolean {
+  const t = message.toLowerCase();
+  const triggers = [
+    "where were we",
+    "where did we leave off",
+    "where did we stop",
+    "continue lesson",
+    "continue the lesson",
+    "pick up where we left off",
+    "let's pick up",
+    "let's continue",
+    "back to the lesson",
+    "back to lesson",
+    "resume lesson",
+    "resume the lesson",
+    "what were we working on",
+  ];
+  return triggers.some((kw) => t.includes(kw));
+}
+
+async function resumeCurrentLesson(args: FreeChatArgs): Promise<void> {
+  const memory = await getMemory(args.userId);
+  const pos = memory.curriculum_position;
+
+  // No position yet — fall back to the "start a lesson" flow.
+  if (!pos?.current_topic || !pos.current_lesson) {
+    await startOrAdvanceLesson(args);
+    return;
+  }
+
+  // Log the student's "resume" turn for context.
+  await logMessage({
+    userId: args.userId,
+    role: "user",
+    content: args.userMessage,
+  });
+
+  // Switch state and replay the current lesson — handleLesson will
+  // re-send the content and re-offer audio if applicable. Idempotent
+  // from the student's POV: same lesson, same items.
+  await updateState(args.userId, { state: "active_structured_lesson" });
+  await handleLesson({
+    userId: args.userId,
+    whatsappNumber: args.whatsappNumber,
+    teacherId: args.teacherId,
+    userMessage: args.userMessage,
+    userPlan: args.userPlan,
   });
 }
 
