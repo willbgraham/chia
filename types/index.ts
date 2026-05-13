@@ -33,6 +33,7 @@ export type ConversationStateName =
   | "active_structured_lesson"
   | "awaiting_audio_confirm"
   | "awaiting_voice_note"
+  | "awaiting_quiz_answer"
   | "idle";
 
 // ── Memory JSON ────────────────────────────────────────────────────────────

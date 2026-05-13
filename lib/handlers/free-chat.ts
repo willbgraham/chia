@@ -21,6 +21,7 @@ import {
   formatCurriculumForChat,
   formatProgressForChat,
 } from "@/lib/handlers/curriculum";
+import { sendQuiz } from "@/lib/handlers/quiz";
 
 interface FreeChatArgs {
   userId: string;
@@ -58,6 +59,18 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // advances past it).
   if (wantsResumeLesson(args.userMessage)) {
     await resumeCurrentLesson(args);
+    return;
+  }
+  // "Quiz me" / "test me" / "pop quiz" → send an interactive
+  // multiple-choice question pulled from a completed (or current)
+  // lesson item. Answer flows through the awaiting_quiz_answer
+  // state machine.
+  if (wantsQuiz(args.userMessage)) {
+    await sendQuiz({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      userPlan: args.userPlan,
+    });
     return;
   }
 
@@ -383,6 +396,26 @@ async function sendProgressSummary(args: FreeChatArgs): Promise<void> {
     role: "assistant",
     content: text,
   });
+}
+
+// "Quiz me" / "test me" / "pop quiz" — student wants a quick
+// multiple-choice question. sendQuiz pulls from completed (or
+// current) lesson items and uses WhatsApp interactive buttons.
+function wantsQuiz(message: string): boolean {
+  const t = message.toLowerCase();
+  const triggers = [
+    "quiz me",
+    "test me",
+    "pop quiz",
+    "give me a quiz",
+    "quiz time",
+    "test my spanish",
+    "test my knowledge",
+    "examen",
+    "pregúntame",
+    "preguntame",
+  ];
+  return triggers.some((kw) => t.includes(kw));
 }
 
 // "Where were we" / "continue" / "pick up" — resume the lesson the

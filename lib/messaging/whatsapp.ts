@@ -92,6 +92,46 @@ export async function sendImage(
   return parseSendResponse(res);
 }
 
+// Send an interactive button message. Up to 3 buttons. Each button
+// gets a stable id (so the inbound reply can be matched against it)
+// and a title (≤20 chars — Meta enforces this strictly).
+// Used for pop quizzes ("¿Cómo se dice X?" + 3 options).
+export interface InteractiveButton {
+  id: string;
+  title: string; // ≤20 chars (Meta hard cap)
+}
+export async function sendInteractiveButtons(
+  toNumber: string,
+  bodyText: string,
+  buttons: InteractiveButton[],
+): Promise<SendResult> {
+  if (buttons.length === 0 || buttons.length > 3) {
+    return { error: `interactive buttons need 1-3 entries, got ${buttons.length}` };
+  }
+  // Hard-truncate titles to 20 chars to avoid Meta rejecting the
+  // whole message. Callers should aim for ≤18 to leave room.
+  const safeButtons = buttons.map((b) => ({
+    type: "reply" as const,
+    reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) },
+  }));
+  const res = await fetch(endpoint(`${phoneNumberId()}/messages`), {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipient(toNumber),
+      type: "interactive",
+      interactive: {
+        type: "button",
+        body: { text: bodyText.slice(0, 1024) },
+        action: { buttons: safeButtons },
+      },
+    }),
+  });
+  return parseSendResponse(res);
+}
+
 // Send a PDF document. URL must be publicly fetchable by Meta. Filename
 // is what the recipient sees in their WhatsApp media gallery; pick
 // something descriptive (e.g., "ser-conjugation.pdf"). Optional caption

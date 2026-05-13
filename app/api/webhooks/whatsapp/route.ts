@@ -102,6 +102,11 @@ interface MetaMessage {
   text?: { body: string };
   audio?: { id: string; mime_type?: string };
   image?: { id: string };
+  interactive?: {
+    type: "button_reply" | "list_reply";
+    button_reply?: { id: string; title: string };
+    list_reply?: { id: string; title: string };
+  };
 }
 
 interface MetaWebhookPayload {
@@ -138,6 +143,21 @@ function extractMessages(payload: MetaWebhookPayload): InboundMessage[] {
           });
         } else if (m.type === "image" && m.image) {
           out.push({ whatsappNumber, type: "image" });
+        } else if (
+          m.type === "interactive" &&
+          m.interactive?.type === "button_reply" &&
+          m.interactive.button_reply
+        ) {
+          // Student tapped a button in an interactive message (e.g.,
+          // a pop-quiz answer). We surface this as a text-shaped
+          // event with a marker that handlers can interpret, while
+          // also passing the button id explicitly for grading.
+          out.push({
+            whatsappNumber,
+            type: "button_reply",
+            buttonReplyId: m.interactive.button_reply.id,
+            buttonReplyTitle: m.interactive.button_reply.title,
+          });
         } else {
           out.push({ whatsappNumber, type: "other" });
         }

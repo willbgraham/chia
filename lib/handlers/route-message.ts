@@ -9,6 +9,7 @@ import { handleFreeChat } from "@/lib/handlers/free-chat";
 import { handleLesson } from "@/lib/handlers/lesson";
 import { handleAudioConfirm } from "@/lib/handlers/audio-confirm";
 import { handleVoiceNote } from "@/lib/handlers/voice-note";
+import { handleQuizAnswer } from "@/lib/handlers/quiz";
 import {
   getOrCreateState,
   touchLastMessage,
@@ -20,9 +21,12 @@ import type { User, ConversationStateName } from "@/types";
 // Shape of the parsed inbound message we pass between handlers.
 export interface InboundMessage {
   whatsappNumber: string;       // E.164 with leading + (we add it on parse)
-  type: "text" | "audio" | "image" | "other";
+  type: "text" | "audio" | "image" | "button_reply" | "other";
   textBody?: string;
   audioMediaId?: string;
+  // For interactive button taps (pop-quiz answers, etc.):
+  buttonReplyId?: string;
+  buttonReplyTitle?: string;
 }
 
 export async function handleInbound(msg: InboundMessage): Promise<void> {
@@ -51,6 +55,34 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
   await touchLastMessage(user.id);
 
   // 3. Route by message type + state.
+  // Button replies from interactive messages (currently used by
+  // pop-quiz answers) take priority over text routing — they only
+  // make sense in the awaiting_quiz_answer state.
+  if (msg.type === "button_reply") {
+    if (state.state === "awaiting_quiz_answer") {
+      await handleQuizAnswer({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        buttonReplyId: msg.buttonReplyId ?? null,
+        buttonReplyTitle: msg.buttonReplyTitle ?? null,
+        userPlan: user.plan,
+        teacherId: user.teacher_id,
+      });
+    } else {
+      // Stray button reply (state cleared in another tab, expired
+      // quiz, etc.) — soft acknowledge and reset.
+      await sendText(
+        msg.whatsappNumber,
+        "Hmm, that quiz isn't open anymore 🌿 Tell me *quiz me* if you want a fresh one.",
+      );
+      await updateStateInline(user.id, {
+        state: "active_free_chat",
+        pending_phrase: null,
+      });
+    }
+    return;
+  }
+
   if (msg.type === "audio") {
     if (!msg.audioMediaId) return;
     await handleVoiceNote({
@@ -134,6 +166,21 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userPlan: user.plan,
         billingPeriodStart: user.billing_period_start,
         userMessage: msg.textBody,
+      });
+      return;
+
+    case "awaiting_quiz_answer":
+      // Text fallback if the interactive message couldn't be delivered
+      // (some WhatsApp clients on older devices). Treat "1"/"2"/"3"
+      // as picking option 1/2/3 in the stored quiz.
+      await handleQuizAnswer({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        buttonReplyId: null,
+        buttonReplyTitle: null,
+        textFallback: msg.textBody,
+        userPlan: user.plan,
+        teacherId: user.teacher_id,
       });
       return;
 
