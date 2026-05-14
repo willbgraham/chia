@@ -8,6 +8,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { logMessage } from "@/lib/handlers/messages";
+import { getModulesForLevel } from "@/lib/handlers/curriculum";
 import type { Lesson, LessonContent, LessonItem, Plan } from "@/types";
 
 interface LessonArgs {
@@ -124,13 +125,30 @@ export async function advanceCurriculum(userId: string): Promise<void> {
     }
   }
 
-  // Find the next lesson in this topic; if none, advance topic.
+  // Find the next lesson, respecting MODULE ordering:
+  //   1. Next lesson_number in same topic
+  //   2. If topic exhausted, next topic in same module
+  //   3. If module exhausted, first topic in next module
+  //   4. If level exhausted, leave pointer where it is (we may
+  //      advance to next level in a future commit)
+  const level = memory.level ?? "beginner";
+  const modules = getModulesForLevel(level);
+
+  // Build a flat topic sequence from modules: [topic1, topic2, ...]
+  // ordered by module index then topic index within module.
+  const topicSequence: string[] = modules.flatMap((m) => m.topics);
+
+  // Locate the current topic in the sequence.
+  const currentTopic = pos.current_topic ?? "";
+  const currentIdx = topicSequence.indexOf(currentTopic);
+
+  // Step 1: try next lesson in same topic.
   const { data: nextInTopic } = await sb
     .from("lessons")
     .select("topic, lesson_number")
     .eq("language", "Spanish")
-    .eq("level", memory.level ?? "beginner")
-    .eq("topic", pos.current_topic ?? "")
+    .eq("level", level)
+    .eq("topic", currentTopic)
     .gt("lesson_number", pos.current_lesson ?? 0)
     .order("lesson_number", { ascending: true })
     .limit(1)
@@ -146,13 +164,44 @@ export async function advanceCurriculum(userId: string): Promise<void> {
     return;
   }
 
-  // No more lessons in this topic — find the next topic.
-  const { data: nextTopic } = await sb
+  // Step 2+: walk forward through the topic sequence and pick the
+  // first topic that has at least one lesson (some topics in the
+  // spec might not yet have generated lessons — skip those).
+  for (let i = currentIdx + 1; i < topicSequence.length; i++) {
+    const nextTopic = topicSequence[i];
+    const { data: firstLesson } = await sb
+      .from("lessons")
+      .select("topic, lesson_number")
+      .eq("language", "Spanish")
+      .eq("level", level)
+      .eq("topic", nextTopic)
+      .order("lesson_number", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (firstLesson) {
+      await patchMemory(userId, {
+        curriculum_position: {
+          current_topic: firstLesson.topic,
+          current_lesson: firstLesson.lesson_number,
+          completed_topics: [
+            ...(pos.completed_topics ?? []),
+            currentTopic,
+          ].filter(Boolean),
+        },
+      });
+      return;
+    }
+  }
+
+  // Fallback for topics not yet in any module — find any lesson in
+  // a topic the student hasn't already worked on. Catches lessons
+  // that pre-date the modules system or have a typo in the topic key.
+  const { data: orphan } = await sb
     .from("lessons")
     .select("topic, lesson_number")
     .eq("language", "Spanish")
-    .eq("level", memory.level ?? "beginner")
-    .neq("topic", pos.current_topic ?? "")
+    .eq("level", level)
+    .neq("topic", currentTopic)
     .order("topic", { ascending: true })
     .order("lesson_number", { ascending: true })
     .limit(1)
@@ -160,11 +209,11 @@ export async function advanceCurriculum(userId: string): Promise<void> {
 
   await patchMemory(userId, {
     curriculum_position: {
-      current_topic: nextTopic?.topic ?? pos.current_topic,
-      current_lesson: nextTopic?.lesson_number ?? pos.current_lesson,
+      current_topic: orphan?.topic ?? currentTopic,
+      current_lesson: orphan?.lesson_number ?? pos.current_lesson,
       completed_topics: [
         ...(pos.completed_topics ?? []),
-        pos.current_topic ?? "",
+        currentTopic,
       ].filter(Boolean),
     },
   });

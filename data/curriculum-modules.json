@@ -1,0 +1,62 @@
+{
+  "_comment": "Module structure for the Spanish curriculum. Groups topics into pedagogically-coherent modules within each level. This is the spine of 'class-like' structure: students progress through modules in order, completing all topics in a module before unlocking the next. Edit this file to rearrange — no schema migration needed. The 'topics' array order also defines progression order within the module. Topics referenced here MUST exist in public.lessons (or they're silently skipped). Topics in public.lessons NOT listed here get an 'Other' bucket at the bottom of the student's level.",
+
+  "modules": {
+    "beginner": [
+      {
+        "name": "Saying Hello",
+        "description": "Greetings, introductions, small talk — the first words you'll say in Spanish.",
+        "topics": ["greetings", "daily_phrases"]
+      },
+      {
+        "name": "Numbers & Time",
+        "description": "Counting, telling time, days, months — anchoring yourself in conversation.",
+        "topics": ["numbers", "time"]
+      },
+      {
+        "name": "Family & Identity",
+        "description": "Talking about who you are, where you're from, and your family.",
+        "topics": ["family", "verb_ser_estar"]
+      },
+      {
+        "name": "Action Verbs",
+        "description": "Present-tense conjugation for -ar, -er, -ir verbs — the engine of every sentence.",
+        "topics": ["verbs_present", "present_tense"]
+      },
+      {
+        "name": "Daily Life",
+        "description": "Ordering food, describing things — vocabulary for everyday moments.",
+        "topics": ["food_basics", "describing"]
+      }
+    ],
+    "intermediate": [
+      {
+        "name": "The Past",
+        "description": "Preterite and imperfect — two ways to talk about what happened.",
+        "topics": ["verb_preterite", "verb_imperfect"]
+      },
+      {
+        "name": "Out & About",
+        "description": "Restaurants, travel, shopping — Spanish for real-world situations.",
+        "topics": ["food_restaurant", "travel", "shopping"]
+      },
+      {
+        "name": "People & Weather",
+        "description": "Describing personalities, talking about the weather — small-talk staples.",
+        "topics": ["weather", "people"]
+      }
+    ],
+    "advanced": [
+      {
+        "name": "Beyond the Basics",
+        "description": "Subjunctive and conditional — for when reality bends.",
+        "topics": ["verb_subjunctive", "verb_conditional"]
+      },
+      {
+        "name": "Sound Like a Local",
+        "description": "Idioms and expressions Spaniards actually use.",
+        "topics": ["idioms"]
+      }
+    ]
+  }
+}
