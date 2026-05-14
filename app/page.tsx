@@ -188,7 +188,8 @@ export default async function Home() {
             features={[
               "Daily Spanish chat with Chia",
               "Translations in English under every reply",
-              "Structured lessons whenever you want them",
+              "Structured curriculum (A1→B1, 10 modules, 39 lessons)",
+              "Pop quizzes via WhatsApp polls",
               "Streak tracking + reminders",
             ]}
             cta="Start free"
@@ -198,13 +199,16 @@ export default async function Home() {
           <PricingCard
             name="Premium"
             price="€25"
-            priceSuffix="/month"
-            tagline="Unlock Chia's voice"
+            priceSuffix="/month or €200/year"
+            tagline="Hear her voice. See her photos. Speak Spanish back."
             features={[
-              "Everything in Free",
-              "Voice notes from Chia in Spanish",
-              "Pronunciation feedback on your voice notes",
-              "Priority responses",
+              "Everything in Free, plus —",
+              "🎵 Voice notes from Chia in Spanish",
+              "🎙️ Pronunciation correction (slow playback to mimic)",
+              "📸 Photos from Valencia mid-conversation",
+              "📄 PDF cheat sheets (conjugations, vocab, pickup lines)",
+              "🧠 Long-term memory across conversations",
+              "500 messages/day (essentially unlimited)",
               "Cancel anytime",
             ]}
             cta="Chat first, upgrade later"
@@ -212,6 +216,13 @@ export default async function Home() {
             primary={true}
           />
         </div>
+        <p className="mt-6 text-sm text-muted text-center">
+          Annual saves €100/year. See full details at{" "}
+          <Link href="/upgrade" className="underline text-text hover:opacity-80">
+            chiachat.com/upgrade
+          </Link>
+          .
+        </p>
       </section>
 
       {/* ─── Footer ─────────────────────────────────────────────── */}

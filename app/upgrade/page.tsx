@@ -24,6 +24,7 @@ export const metadata: Metadata = {
 };
 
 const STRIPE_LINK = process.env.STRIPE_PREMIUM_PAYMENT_LINK ?? "";
+const STRIPE_ANNUAL_LINK = process.env.STRIPE_PREMIUM_ANNUAL_PAYMENT_LINK ?? "";
 const WHATSAPP_NUMBER =
   process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "34600974942";
 const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}`;
@@ -58,19 +59,20 @@ async function fetchChia(): Promise<ChiaInfo | null> {
 // link overrides ("LAUNCH50" vs "WINBACK20") are possible by sending
 // a different link in Chia's message.
 function buildStripeLink(
+  baseLink: string,
   ref: string | undefined,
   promoOverride: string | undefined,
 ): string {
-  if (!STRIPE_LINK) return "#";
+  if (!baseLink) return "#";
   const params: string[] = [];
   if (ref) params.push(`client_reference_id=${encodeURIComponent(ref)}`);
   const promo = promoOverride ?? process.env.STRIPE_PREFILLED_PROMO_CODE ?? "";
   if (promo) {
     params.push(`prefilled_promo_code=${encodeURIComponent(promo)}`);
   }
-  if (params.length === 0) return STRIPE_LINK;
-  const sep = STRIPE_LINK.includes("?") ? "&" : "?";
-  return `${STRIPE_LINK}${sep}${params.join("&")}`;
+  if (params.length === 0) return baseLink;
+  const sep = baseLink.includes("?") ? "&" : "?";
+  return `${baseLink}${sep}${params.join("&")}`;
 }
 
 export default async function UpgradePage({
@@ -79,7 +81,15 @@ export default async function UpgradePage({
   searchParams: { ref?: string; promo?: string };
 }) {
   const chia = await fetchChia();
-  const checkoutUrl = buildStripeLink(searchParams.ref, searchParams.promo);
+  const monthlyUrl = buildStripeLink(
+    STRIPE_LINK,
+    searchParams.ref,
+    searchParams.promo,
+  );
+  const annualUrl = STRIPE_ANNUAL_LINK
+    ? buildStripeLink(STRIPE_ANNUAL_LINK, searchParams.ref, searchParams.promo)
+    : null;
+  const hasAnnual = !!annualUrl;
 
   return (
     <main className="min-h-screen bg-bg text-text">
@@ -125,35 +135,79 @@ export default async function UpgradePage({
           ) : null}
         </div>
 
-        {/* ── Price + CTA ──────────────────────────────── */}
-        <div className="mt-12 rounded-3xl border border-accent/40 bg-accent/10 p-8">
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-semibold text-text">€25</span>
-            <span className="text-lg text-muted">/month</span>
-          </div>
-          <div className="mt-1 text-sm text-muted">
-            Cancel anytime · No long-term contract · Card or Apple Pay
+        {/* ── Pricing options ──────────────────────────────── */}
+        <div
+          className={
+            "mt-12 grid grid-cols-1 gap-4 " +
+            (hasAnnual ? "md:grid-cols-2" : "")
+          }
+        >
+          {/* Monthly */}
+          <div className="rounded-3xl border border-border bg-surface p-8">
+            <div className="text-xs uppercase tracking-wide text-muted">
+              Monthly
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-5xl font-semibold text-text">€25</span>
+              <span className="text-lg text-muted">/month</span>
+            </div>
+            <div className="mt-1 text-sm text-muted">
+              Cancel anytime. Charged monthly.
+            </div>
+            <a
+              href={monthlyUrl}
+              data-track="InitiateCheckout"
+              data-track-label="upgrade-monthly"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-bg px-6 py-3 text-sm font-semibold text-text hover:border-muted transition-colors"
+            >
+              Choose monthly
+            </a>
           </div>
 
-          <ul className="mt-6 space-y-3">
-            <Feature text="Voice notes from Chia in real Spanish" />
-            <Feature text="Pronunciation feedback on your voice messages" />
-            <Feature text="Contextual photos from Valencia mid-chat" />
-            <Feature text="Unlimited daily messages (free is capped)" />
-            <Feature text="Priority responses + new features first" />
+          {/* Annual — featured */}
+          {hasAnnual ? (
+            <div className="relative rounded-3xl border border-accent/50 bg-accent/10 p-8">
+              <div className="absolute -top-3 right-6 rounded-full bg-accent px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-bg">
+                Save €100
+              </div>
+              <div className="text-xs uppercase tracking-wide text-accent">
+                Annual
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-5xl font-semibold text-text">€200</span>
+                <span className="text-lg text-muted">/year</span>
+              </div>
+              <div className="mt-1 text-sm text-muted">
+                Works out to €16.67/month. Cancel anytime.
+              </div>
+              <a
+                href={annualUrl}
+                data-track="InitiateCheckout"
+                data-track-label="upgrade-annual"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-bg hover:opacity-90 transition-opacity"
+              >
+                Choose annual · save €100
+              </a>
+            </div>
+          ) : null}
+        </div>
+
+        {/* What's included */}
+        <div className="mt-8 rounded-2xl border border-border bg-surface p-6">
+          <div className="text-xs uppercase tracking-wide text-muted mb-3">
+            What you get with Premium
+          </div>
+          <ul className="space-y-2.5">
+            <Feature text="🎵 Chia speaks every Spanish phrase aloud" />
+            <Feature text="🎙️ Pronunciation correction (with slower audio so you can mimic it)" />
+            <Feature text="📸 Contextual photos from Valencia mid-chat" />
+            <Feature text="📄 PDF cheat sheets (verb conjugations, vocab, pickup lines)" />
+            <Feature text="🧠 Long-term memory — Chia remembers your conversations forever" />
+            <Feature text="🎯 Pop quizzes via WhatsApp polls" />
+            <Feature text="500 messages/day (essentially unlimited)" />
             <Feature text="Cancel from your account in two clicks" />
           </ul>
-
-          <a
-            href={checkoutUrl}
-            data-track="InitiateCheckout"
-            data-track-label="upgrade-page"
-            className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full bg-accent text-bg px-6 py-4 text-base font-semibold hover:opacity-90 transition-opacity"
-          >
-            Upgrade to Premium
-          </a>
-
-          <p className="mt-4 text-xs text-muted text-center">
+          <p className="mt-5 text-xs text-muted">
             Payment handled securely by Stripe. We never see your card.
           </p>
         </div>
@@ -172,6 +226,8 @@ export default async function UpgradePage({
                 <li>• Daily Spanish chat with Chia</li>
                 <li>• English translations under every reply</li>
                 <li>• Phonetic pronunciation in brackets</li>
+                <li>• Pop quizzes via WhatsApp polls</li>
+                <li>• Structured curriculum (A1→B1, 10 modules)</li>
                 <li>• Streak tracking + reminders</li>
                 <li>• 50 messages/day cap</li>
               </ul>
@@ -185,8 +241,10 @@ export default async function UpgradePage({
                   • Everything in Free, plus —
                 </li>
                 <li>• 🎵 Chia speaks the phrases aloud</li>
-                <li>• 🎙️ Pronunciation correction on your voice notes</li>
+                <li>• 🎙️ Pronunciation correction (slow playback to mimic)</li>
                 <li>• 📸 Photos from Valencia mid-conversation</li>
+                <li>• 📄 PDF cheat sheets on demand</li>
+                <li>• 🧠 Long-term memory across conversations</li>
                 <li>• 500 messages/day soft cap (essentially unlimited)</li>
               </ul>
             </div>
