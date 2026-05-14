@@ -235,13 +235,20 @@ async function maybeSendCorrectiveAudio(args: {
   if (!limit.ok) return; // user already hit the cap; correction text alone is fine
 
   try {
-    // Send the slower variant for pronunciation correction. The
-    // student already heard it at normal speed when Chia offered
-    // it; now they need a clear, deliberate version to mimic.
-    // 0.85 = noticeably slower without sounding robotic.
+    // Send a slow + clearly-enunciated variant for pronunciation
+    // correction. We DON'T use voice_settings.speed because on
+    // eleven_multilingual_v2 it does sample-rate manipulation
+    // (lowering pitch as a side-effect — Chia ends up sounding
+    // deeper, not slower). Instead we insert ellipses between
+    // words: ElevenLabs reads "..." as a natural breathing pause,
+    // so "Buenos días" becomes "Buenos... días..." in audio, paced
+    // deliberately with no pitch change.
+    //
+    // Cache key separation is automatic — the transformed text
+    // hashes differently from the original.
+    const slowText = slowifyText(args.targetPhrase);
     const { publicUrl, fromCache, charactersGenerated } = await getOrCreateAudio(
-      args.targetPhrase,
-      { speed: 0.85 },
+      slowText,
     );
     await sendAudio(args.whatsappNumber, publicUrl);
     await logAudioUsage({
@@ -254,6 +261,33 @@ async function maybeSendCorrectiveAudio(args: {
     // Don't fail the whole voice-note flow if the corrective clip can't be sent.
     console.error("[voice-note] corrective audio failed:", err);
   }
+}
+
+// Transform a Spanish phrase into a "deliberate-pace" version for
+// corrective playback. ElevenLabs interprets "..." as a natural
+// breathing pause, so inserting ellipses between words slows the
+// speech without changing pitch.
+//
+//   "Hola"             → "Hola... Hola"           (single word: say twice)
+//   "Buenos días"      → "Buenos... días"
+//   "¿Cómo te llamas?" → "¿Cómo... te... llamas?" (preserves intonation)
+//   "Me llamo Will"    → "Me... llamo... Will"
+//
+// Single-word phrases get said TWICE with a pause between — both
+// gives the student a clearer reference AND a second chance to mimic.
+// Multi-word phrases keep their final-word punctuation intact so
+// question intonation survives.
+function slowifyText(text: string): string {
+  const trimmed = text.trim();
+  const words = trimmed.split(/\s+/);
+
+  if (words.length === 1) {
+    return `${trimmed}... ${trimmed}`;
+  }
+
+  return words
+    .map((w, i) => (i === words.length - 1 ? w : `${w}...`))
+    .join(" ");
 }
 
 async function getAgentVoicePrompt(
