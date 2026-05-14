@@ -235,8 +235,13 @@ async function maybeSendCorrectiveAudio(args: {
   if (!limit.ok) return; // user already hit the cap; correction text alone is fine
 
   try {
+    // Send the slower variant for pronunciation correction. The
+    // student already heard it at normal speed when Chia offered
+    // it; now they need a clear, deliberate version to mimic.
+    // 0.85 = noticeably slower without sounding robotic.
     const { publicUrl, fromCache, charactersGenerated } = await getOrCreateAudio(
       args.targetPhrase,
+      { speed: 0.85 },
     );
     await sendAudio(args.whatsappNumber, publicUrl);
     await logAudioUsage({

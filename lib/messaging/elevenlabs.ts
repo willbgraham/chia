@@ -19,6 +19,10 @@ export interface TTSOptions {
   style?: number;
   useSpeakerBoost?: boolean;
   outputFormat?: string;
+  // Playback speed multiplier. 1.0 = normal, 0.85 = slower
+  // (for pronunciation correction). Range 0.7-1.2; ElevenLabs
+  // rejects values outside that. Default 1.0.
+  speed?: number;
 }
 
 // Generate Chia speaking a phrase. Returns MP3 bytes.
@@ -58,6 +62,9 @@ export async function textToSpeech(
         // personality without making her sound theatrical.
         style: options.style ?? 0.55,
         use_speaker_boost: options.useSpeakerBoost ?? true,
+        // Speed: 1.0 normal, 0.85 noticeably slower (used for
+        // pronunciation correction). ElevenLabs accepts 0.7-1.2.
+        speed: options.speed ?? 1.0,
       },
     }),
   });
