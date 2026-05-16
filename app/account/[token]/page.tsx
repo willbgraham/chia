@@ -8,7 +8,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Mail, AlertTriangle } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Mail,
+  AlertTriangle,
+  BookOpen,
+  ChevronRight,
+} from "lucide-react";
+import { getCurriculumForUser } from "@/lib/handlers/curriculum";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { verifyAccountToken } from "@/lib/account/magic-link";
 import { formatDate, maskWhatsAppNumber } from "@/lib/utils";
@@ -45,6 +53,19 @@ export default async function AccountPage({
 
   if (!user) notFound();
   const u = user as User;
+
+  // Pull lightweight curriculum progress for the "Your course" card —
+  // just the counts, not the full lesson list. The detail view lives
+  // on /account/[token]/curriculum.
+  const level =
+    (u.memory_json as { level?: string } | null)?.level ?? "beginner";
+  const lessons = await getCurriculumForUser(u.id, level);
+  const totalLessons = lessons.length;
+  const completedLessons = lessons.filter((l) => l.completed).length;
+  const coursePct =
+    totalLessons === 0
+      ? 0
+      : Math.round((completedLessons / totalLessons) * 100);
 
   return (
     <main className="min-h-screen bg-bg text-text">
@@ -136,6 +157,39 @@ export default async function AccountPage({
             <Row label="Joined" value={formatDate(u.created_at)} />
           </div>
         </div>
+
+        {/* ── Course progress card ───────────────────────────── */}
+        <Link
+          href={`/account/${params.token}/curriculum`}
+          className="mt-6 block rounded-2xl border border-border bg-surface p-6 hover:border-muted transition-colors"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-sm font-semibold text-text">
+                  Your Spanish course
+                </div>
+                <div className="text-xs text-muted shrink-0">
+                  {completedLessons}/{totalLessons} · {coursePct}%
+                </div>
+              </div>
+              <div className="mt-1 text-xs text-muted">
+                See the full course agenda and check off what you&apos;ve learned
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-bg border border-border overflow-hidden">
+                <div
+                  className="h-full bg-accent transition-all"
+                  style={{ width: `${coursePct}%` }}
+                  aria-hidden
+                />
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted shrink-0" aria-hidden />
+          </div>
+        </Link>
 
         {/* ── Memory snapshot ───────────────────────────────── */}
         <MemorySnapshot user={u} />
