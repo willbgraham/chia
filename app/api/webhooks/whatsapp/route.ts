@@ -157,14 +157,29 @@ function extractMessages(payload: MetaWebhookPayload): InboundMessage[] {
           m.interactive.button_reply
         ) {
           // Student tapped a button in an interactive message (e.g.,
-          // a pop-quiz answer). We surface this as a text-shaped
-          // event with a marker that handlers can interpret, while
-          // also passing the button id explicitly for grading.
+          // a pop-quiz answer). We surface this as a button_reply
+          // event with the chosen option id for grading.
           out.push({
             whatsappNumber,
             type: "button_reply",
             buttonReplyId: m.interactive.button_reply.id,
             buttonReplyTitle: m.interactive.button_reply.title,
+          });
+        } else if (
+          m.type === "interactive" &&
+          m.interactive?.type === "list_reply" &&
+          m.interactive.list_reply
+        ) {
+          // Student picked a row from an interactive list message
+          // (used for 4-7 option MCQs in the end-of-lesson quiz).
+          // We collapse this into the same button_reply shape so
+          // downstream handlers don't have to care about the
+          // distinction — they just see the picked option id.
+          out.push({
+            whatsappNumber,
+            type: "button_reply",
+            buttonReplyId: m.interactive.list_reply.id,
+            buttonReplyTitle: m.interactive.list_reply.title,
           });
         } else {
           out.push({ whatsappNumber, type: "other" });

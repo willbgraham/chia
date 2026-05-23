@@ -132,6 +132,66 @@ export async function sendInteractiveButtons(
   return parseSendResponse(res);
 }
 
+// Send an interactive list message. Up to 10 total rows, grouped
+// into one or more sections. Lists are how WhatsApp Cloud API
+// supports MCQs with more than 3 options (the polls feature is
+// consumer-only and not in the Business Cloud API).
+//
+// Meta caps: ≤10 rows across all sections, row title ≤24 chars,
+// row description ≤72 chars, button label (the dropdown trigger) ≤20 chars.
+// We hard-truncate so a small overage doesn't reject the entire message.
+//
+// Inbound: when the student taps a row, Meta sends an interactive
+// message with type=list_reply containing the chosen row's id. The
+// webhook parser reads it as msg.listReplyId.
+export interface InteractiveListRow {
+  id: string;          // ≤200 chars in payload; we trim to 200
+  title: string;       // ≤24 chars (Meta cap)
+  description?: string; // ≤72 chars
+}
+export interface InteractiveListSection {
+  title: string;       // ≤24 chars
+  rows: InteractiveListRow[];
+}
+export async function sendInteractiveList(
+  toNumber: string,
+  bodyText: string,
+  buttonLabel: string,
+  sections: InteractiveListSection[],
+): Promise<SendResult> {
+  const totalRows = sections.reduce((acc, s) => acc + s.rows.length, 0);
+  if (totalRows === 0 || totalRows > 10) {
+    return { error: `interactive list needs 1-10 rows total, got ${totalRows}` };
+  }
+  const safeSections = sections.map((s) => ({
+    title: s.title.slice(0, 24),
+    rows: s.rows.map((r) => ({
+      id: r.id.slice(0, 200),
+      title: r.title.slice(0, 24),
+      ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+    })),
+  }));
+  const res = await fetch(endpoint(`${phoneNumberId()}/messages`), {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipient(toNumber),
+      type: "interactive",
+      interactive: {
+        type: "list",
+        body: { text: bodyText.slice(0, 1024) },
+        action: {
+          button: buttonLabel.slice(0, 20),
+          sections: safeSections,
+        },
+      },
+    }),
+  });
+  return parseSendResponse(res);
+}
+
 // Send a PDF document. URL must be publicly fetchable by Meta. Filename
 // is what the recipient sees in their WhatsApp media gallery; pick
 // something descriptive (e.g., "ser-conjugation.pdf"). Optional caption

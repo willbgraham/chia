@@ -704,31 +704,13 @@ async function startOrAdvanceLesson(args: FreeChatArgs): Promise<void> {
     content: args.userMessage,
   });
 
-  // Checkpoint quiz hook: if the lesson they just completed was the
-  // last lesson of a module they haven't been quiz-prompted on yet,
-  // offer the Reading/Listening/Speaking checkpoint instead of
-  // delivering the next lesson. handleLesson runs on the user's
-  // *next* turn once the quiz finishes (or they skip).
-  try {
-    const { checkModuleCompletion, offerCheckpointQuiz } = await import(
-      "@/lib/handlers/module-quiz"
-    );
-    const done = await checkModuleCompletion(args.userId);
-    if (done) {
-      await offerCheckpointQuiz({
-        userId: args.userId,
-        whatsappNumber: args.whatsappNumber,
-        moduleIdx: done.moduleIdx,
-        moduleName: done.moduleName,
-        level: done.level,
-      });
-      return;
-    }
-  } catch (err) {
-    // Best-effort — don't block the lesson if the quiz hook errors.
-    console.error("[free-chat] module-quiz check failed:", err);
-  }
-
+  // (Checkpoint-quiz trigger moved.) Phase 1 of the pedagogy upgrade
+  // attaches module-checkpoint offering to the END of each lesson's
+  // quiz (lesson-quiz.ts → finishQuiz). That way the checkpoint only
+  // fires after the student has actually been assessed on the last
+  // lesson — not just because they typed "next lesson" while
+  // potentially having bailed on the previous one.
+  //
   // Switch state and fire the lesson handler immediately.
   await updateState(args.userId, { state: "active_structured_lesson" });
   await handleLesson({

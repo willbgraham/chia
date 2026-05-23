@@ -18,6 +18,14 @@ import {
   parseChoiceText as parseModuleQuizChoiceText,
 } from "@/lib/handlers/module-quiz";
 import {
+  handlePracticeResponse as handleLessonPracticeResponse,
+  handleLessonQuizAnswer,
+  handleLessonQuizVoice,
+  matchQuitIntent as matchLessonQuitIntent,
+  handleQuitIntent as handleLessonQuitIntent,
+  clearStaleLessonState,
+} from "@/lib/handlers/lesson-quiz";
+import {
   getOrCreateState,
   touchLastMessage,
   updateState as updateStateInline,
@@ -61,6 +69,23 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
   const state = await getOrCreateState(user.id);
   await touchLastMessage(user.id);
 
+  // 2b. Stale-state recovery for the lesson practice/quiz loop. If
+  // the student bailed mid-lesson 24h+ ago and now returns, don't
+  // trap them in the old state — clear it and let them re-enter the
+  // normal flow. lesson-quiz.clearStaleLessonState handles the
+  // user-facing soft message + state reset; we then fall through
+  // and route the current message as if state were active_free_chat.
+  if (
+    (state.state === "awaiting_lesson_practice" ||
+      state.state === "awaiting_lesson_quiz") &&
+    state.last_message_at &&
+    Date.now() - new Date(state.last_message_at).getTime() >
+      24 * 60 * 60 * 1000
+  ) {
+    await clearStaleLessonState(user.id, msg.whatsappNumber);
+    state.state = "active_free_chat";
+  }
+
   // 3. Route by message type + state.
   // Button replies from interactive messages (currently used by
   // pop-quiz answers) take priority over text routing — they only
@@ -98,6 +123,18 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
           billingPeriodStart: user.billing_period_start,
         });
       }
+    } else if (state.state === "awaiting_lesson_quiz") {
+      // Lesson-quiz MCQ answer (covers both button-reply and
+      // collapsed-list-reply ids — the webhook parser folds list_reply
+      // into the same shape).
+      await handleLessonQuizAnswer({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        buttonReplyId: msg.buttonReplyId ?? null,
+        textFallback: null,
+        userPlan: user.plan,
+        teacherId: user.teacher_id,
+      });
     } else {
       // Stray button reply (state cleared in another tab, expired
       // quiz, etc.) — soft acknowledge and reset.
@@ -115,8 +152,9 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
 
   if (msg.type === "audio") {
     if (!msg.audioMediaId) return;
-    // Speaking-quiz voice notes are routed to the module-quiz handler;
-    // everything else flows through the normal voice-note pipeline.
+    // Speaking-quiz voice notes are routed to their owning handler
+    // (module-quiz or lesson-quiz); everything else flows through
+    // the normal voice-note pipeline.
     if (state.state === "awaiting_module_quiz") {
       await handleModuleQuizVoice({
         userId: user.id,
@@ -124,6 +162,16 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         audioMediaId: msg.audioMediaId,
         userPlan: user.plan,
         billingPeriodStart: user.billing_period_start,
+      });
+      return;
+    }
+    if (state.state === "awaiting_lesson_quiz") {
+      await handleLessonQuizVoice({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        audioMediaId: msg.audioMediaId,
+        userPlan: user.plan,
+        teacherId: user.teacher_id,
       });
       return;
     }
@@ -254,6 +302,35 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
           });
         }
       }
+      return;
+
+    case "awaiting_lesson_practice":
+      // Guided practice: student typed (or voice-noted) their response.
+      // Quit-intent check first so "skip" cleanly exits the loop.
+      if (matchLessonQuitIntent(msg.textBody)) {
+        await handleLessonQuitIntent(user.id, msg.whatsappNumber);
+        return;
+      }
+      await handleLessonPracticeResponse({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        userMessage: msg.textBody,
+        teacherId: user.teacher_id,
+        userPlan: user.plan,
+      });
+      return;
+
+    case "awaiting_lesson_quiz":
+      // Text fallback for lesson quiz (or quit intent). The handler
+      // checks for quit-intent internally before fallback grading.
+      await handleLessonQuizAnswer({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        buttonReplyId: null,
+        textFallback: msg.textBody,
+        userPlan: user.plan,
+        teacherId: user.teacher_id,
+      });
       return;
 
     case "awaiting_voice_note":

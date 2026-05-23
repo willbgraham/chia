@@ -88,48 +88,60 @@ export async function handleLesson(args: LessonArgs): Promise<void> {
     }
   }
 
-  // Drop into free chat for follow-up questions about the lesson.
-  // The prepared audio clip above already covers what the old "Want
-  // to hear me say...?" offer used to do, so there's no extra prompt
-  // and no awaiting_audio_confirm state to wait through.
-  await updateState(args.userId, { state: "active_free_chat" });
+  // Enter the post-lesson interactive loop: 2-3 guided practice
+  // prompts → 5-question quiz covering all the lesson's items →
+  // completion. Lesson-quiz.ts owns the state machine from here.
+  // Falls back to active_free_chat if startLessonPractice fails so
+  // the student isn't stuck after a successful lesson delivery.
+  try {
+    const { startLessonPractice } = await import("@/lib/handlers/lesson-quiz");
+    await startLessonPractice({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      lesson,
+      teacherId: args.teacherId,
+      userPlan: args.userPlan ?? "free",
+    });
+  } catch (err) {
+    console.error("[lesson] startLessonPractice failed:", err);
+    await updateState(args.userId, { state: "active_free_chat" });
+  }
 }
 
-// Mark the current lesson complete in user_lesson_progress, then
-// advance curriculum_position to the next lesson (same topic if more
-// remain, otherwise next topic). Idempotent — marking a lesson done
-// twice is a no-op.
+// Mark a specific lesson complete in user_lesson_progress. Called by
+// lesson-quiz.ts when the end-of-lesson quiz finishes. Idempotent —
+// re-marking a completed lesson is a no-op via upsert.
+//
+// This used to live inside advanceCurriculum, but was split out so
+// completion happens when the student finishes the *quiz* (a real
+// signal of comprehension) rather than just when they type "next
+// lesson" (which doesn't prove they learned anything).
+export async function markLessonComplete(
+  userId: string,
+  lessonId: string,
+): Promise<void> {
+  const sb = getAdminClient();
+  await sb.from("user_lesson_progress").upsert(
+    {
+      user_id: userId,
+      lesson_id: lessonId,
+      status: "completed",
+      completed_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,lesson_id", ignoreDuplicates: false },
+  );
+}
+
+// Move curriculum_position forward to the next lesson (same topic if
+// more remain, otherwise next topic in the module / next module).
+// Does NOT mark the current lesson complete — that happens via
+// markLessonComplete() at end-of-quiz instead. Idempotent.
 export async function advanceCurriculum(userId: string): Promise<void> {
   const memory = await getMemory(userId);
   const pos = memory.curriculum_position;
   if (!pos) return;
 
   const sb = getAdminClient();
-
-  // Record current lesson as completed in user_lesson_progress.
-  if (pos.current_topic && pos.current_lesson) {
-    const { data: currentLesson } = await sb
-      .from("lessons")
-      .select("id")
-      .eq("language", "Spanish")
-      .eq("level", memory.level ?? "beginner")
-      .eq("topic", pos.current_topic)
-      .eq("lesson_number", pos.current_lesson)
-      .maybeSingle();
-    if (currentLesson?.id) {
-      await sb
-        .from("user_lesson_progress")
-        .upsert(
-          {
-            user_id: userId,
-            lesson_id: currentLesson.id,
-            status: "completed",
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,lesson_id", ignoreDuplicates: false },
-        );
-    }
-  }
 
   // Find the next lesson, respecting MODULE ordering:
   //   1. Next lesson_number in same topic

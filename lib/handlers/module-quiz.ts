@@ -33,7 +33,7 @@ import {
   fetchMediaUrl,
   downloadMedia,
 } from "@/lib/messaging/whatsapp";
-import { chatCompletion, transcribeAudio } from "@/lib/messaging/openai";
+import { transcribeAudio } from "@/lib/messaging/openai";
 import { getOrCreateAudio } from "@/lib/messaging/audio-cache";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory, patchMemory } from "@/lib/handlers/memory";
@@ -41,7 +41,19 @@ import { updateState } from "@/lib/handlers/state";
 import { logMessage } from "@/lib/handlers/messages";
 import { logAudioUsage, isWithinLimit } from "@/lib/handlers/usage";
 import { getModulesForLevel } from "@/lib/handlers/curriculum";
+import {
+  generateDistractorsBatch,
+  normalizeSpanish as _normalizeSpanish,
+  fuzzyMatchSpanish,
+  trimTitle,
+  rid,
+  shuffle,
+} from "@/lib/handlers/quiz-shared";
 import type { LessonContent, LessonItem, MemoryJson, Plan } from "@/types";
+
+// Re-export normalizeSpanish so older callers (if any) keep working;
+// internal code uses the imported version.
+void _normalizeSpanish;
 
 // 3 questions per quiz — long enough to feel like a real checkpoint,
 // short enough that students actually finish it on the phone.
@@ -663,67 +675,6 @@ async function buildQuestions(args: {
   }));
 }
 
-async function generateDistractorsBatch(
-  items: LessonItem[],
-): Promise<string[][]> {
-  const system = `You generate plausible-but-wrong English meanings for a Spanish quiz. Output JSON shaped {"sets":[["d1","d2"],["d1","d2"],...]} — one inner array of 2 distractors per input item, in the same order. Each distractor ≤18 chars. They must be tempting but clearly wrong to a learner who knows the right answer. No accents missing. No quotes inside the strings.`;
-  const lines = items
-    .map(
-      (it, i) =>
-        `${i + 1}. Spanish: "${it.target_language}" — correct English: "${it.native_language}"`,
-    )
-    .join("\n");
-  const user = `Generate 2 wrong English meanings per item:\n\n${lines}\n\nReturn JSON only.`;
-
-  const raw = await chatCompletion(
-    [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    {
-      temperature: 0.7,
-      max_tokens: 400,
-      response_format: { type: "json_object" },
-    },
-  );
-  const parsed = JSON.parse(raw) as { sets?: string[][] };
-  const sets = (parsed.sets ?? []).map((arr) =>
-    (arr ?? [])
-      .map((s) => String(s).slice(0, 18).trim())
-      .filter((s) => s.length > 0),
-  );
-  // Pad to the expected length so the caller's mapping never undefs.
-  while (sets.length < items.length) sets.push(["other meaning", "no idea"]);
-  return sets;
-}
-
-// Normalize Spanish for forgiving Speaking grading. Strips accents,
-// lowercases, removes punctuation. "Hola, ¿qué tal?" → "hola que tal"
-function normalizeSpanish(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // strip diacritics
-    .replace(/[¿?¡!.,:;"'`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function fuzzyMatchSpanish(transcription: string, expected: string): boolean {
-  const t = normalizeSpanish(transcription);
-  const e = normalizeSpanish(expected);
-  if (!t || !e) return false;
-  // Forgiving: either contains the other (handles "El agua" vs "agua").
-  if (t === e) return true;
-  if (t.includes(e)) return true;
-  if (e.includes(t) && t.length >= Math.max(3, e.length * 0.6)) return true;
-  // Token-overlap fallback: ≥70% of expected tokens appear in transcription.
-  const eTokens = e.split(" ");
-  const tTokens = new Set(t.split(" "));
-  const hits = eTokens.filter((tok) => tTokens.has(tok)).length;
-  return hits / eTokens.length >= 0.7;
-}
-
 // Map a button id or numeric text reply to a quiz-type choice.
 export function parseChoiceFromButtonId(id: string | null | undefined):
   | ModuleQuizType
@@ -745,17 +696,3 @@ export function parseChoiceText(text: string): ModuleQuizType | "skip" | null {
   return null;
 }
 
-function trimTitle(s: string): string {
-  return s.length <= 18 ? s : s.slice(0, 17) + "…";
-}
-
-function rid(): string {
-  return Math.random().toString(36).slice(2, 8);
-}
-
-function shuffle<T>(arr: T[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-}
