@@ -48,12 +48,12 @@ export async function POST(
 
   const sb = getAdminClient();
 
-  // Look up the lesson — we need topic + lesson_number to update
-  // curriculum_position, and the lesson row's existence is the
-  // implicit validation that lesson_id is real.
+  // Look up the lesson — we need topic + lesson_number + level to
+  // update curriculum_position + memory.level. The lesson row's
+  // existence is the implicit validation that lesson_id is real.
   const { data: lesson } = await sb
     .from("lessons")
-    .select("id, topic, lesson_number, title")
+    .select("id, topic, lesson_number, title, level")
     .eq("id", body.lesson_id)
     .maybeSingle();
   if (!lesson) {
@@ -68,6 +68,7 @@ export async function POST(
     .single();
   const memory =
     (user?.memory_json as {
+      level?: string;
       curriculum_position?: {
         current_topic?: string;
         current_lesson?: number;
@@ -77,13 +78,21 @@ export async function POST(
     } | null) ?? {};
   const pos = memory.curriculum_position ?? {};
 
-  // Patch curriculum_position to the chosen lesson. Keep
-  // completed_topics intact.
+  // Patch curriculum_position AND memory.level to the chosen lesson.
+  //
+  // Updating level is essential — handleLesson() fetches the lesson
+  // via (language, level, topic, lesson_number), so if the student
+  // jumps from A1 to C1 via the dashboard and we don't sync level,
+  // the fetch falls back to beginner-level lessons and returns null
+  // ("You've reached the end of what I have prepared"). The
+  // dashboard's Learn button is an explicit intent to start that
+  // lesson — bumping their level pointer to match is correct.
   const { error: updErr } = await sb
     .from("users")
     .update({
       memory_json: {
         ...memory,
+        level: lesson.level,
         curriculum_position: {
           current_topic: lesson.topic,
           current_lesson: lesson.lesson_number,
