@@ -100,3 +100,13 @@ export function accountUrl(userId: string): string {
     process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
   return `${base.replace(/\/+$/, "")}/account/${token}`;
 }
+
+// Deep-link to the curriculum dashboard sub-page. Same token, just
+// lands the student directly on the visual course agenda rather than
+// the generic account page.
+export function curriculumUrl(userId: string): string {
+  const token = signAccountToken(userId);
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
+  return `${base.replace(/\/+$/, "")}/account/${token}/curriculum`;
+}

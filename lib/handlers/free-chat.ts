@@ -7,7 +7,7 @@ import { chiaTextTurn, chatCompletion } from "@/lib/messaging/openai";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getMemory, patchMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
-import { accountUrl } from "@/lib/account/magic-link";
+import { accountUrl, curriculumUrl } from "@/lib/account/magic-link";
 import { pickContextualPhoto } from "@/lib/handlers/photo-pick";
 import { logMessage, findRelevantMessages } from "@/lib/handlers/messages";
 import { handleLesson, advanceCurriculum } from "@/lib/handlers/lesson";
@@ -348,7 +348,14 @@ async function sendCurriculumOverview(args: FreeChatArgs): Promise<void> {
   const memory = await getMemory(args.userId);
   const level = memory.level ?? "beginner";
   const lessons = await getCurriculumForUser(args.userId, level);
-  const text = formatCurriculumForChat(lessons, level);
+  const overview = formatCurriculumForChat(lessons, level);
+  // Append a magic-link to the visual curriculum dashboard so
+  // students can tap into a real syllabus view + check off lessons.
+  const link = curriculumUrl(args.userId);
+  const text =
+    `${overview}\n\n` +
+    `📱 *Full visual view + check off what you've learned:*\n${link}\n` +
+    `_(link valid for 24h — message me "curriculum" again for a fresh one)_`;
   await sendText(args.whatsappNumber, text);
   await logMessage({
     userId: args.userId,
@@ -384,7 +391,14 @@ async function sendProgressSummary(args: FreeChatArgs): Promise<void> {
   const memory = await getMemory(args.userId);
   const level = memory.level ?? "beginner";
   const lessons = await getCurriculumForUser(args.userId, level);
-  const text = formatProgressForChat(lessons, level);
+  const summary = formatProgressForChat(lessons, level);
+  // Same link as the curriculum overview — once they're looking at
+  // their progress, the next click should be the full visual dashboard.
+  const link = curriculumUrl(args.userId);
+  const text =
+    `${summary}\n\n` +
+    `📱 *Full course + check-offs:*\n${link}\n` +
+    `_(link valid for 24h)_`;
   await sendText(args.whatsappNumber, text);
   await logMessage({
     userId: args.userId,
