@@ -21,6 +21,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import { verifyAccountToken } from "@/lib/account/magic-link";
 import { formatDate, maskWhatsAppNumber } from "@/lib/utils";
 import { ManageSubscriptionButton } from "./ManageSubscriptionButton";
+import { ClearMemoryButton } from "./ClearMemoryButton";
 import type { User } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -191,8 +192,10 @@ export default async function AccountPage({
           </div>
         </Link>
 
-        {/* ── Memory snapshot ───────────────────────────────── */}
-        <MemorySnapshot user={u} />
+        {/* ── Privacy / memory control ──────────────────────── */}
+        <div className="mt-6">
+          <ClearMemoryButton token={params.token} />
+        </div>
 
         {/* ── Footer ────────────────────────────────────────── */}
         <p className="mt-12 text-xs text-muted text-center">
@@ -210,34 +213,6 @@ function Row({ label, value }: { label: string; value: string }) {
       <div className="text-muted">{label}</div>
       <div className="text-text font-mono text-right">{value}</div>
     </div>
-  );
-}
-
-function MemorySnapshot({ user }: { user: User }) {
-  const memory = user.memory_json as Record<string, unknown>;
-  // Don't show the rolling _recent buffer — that's noise.
-  const visible = { ...memory };
-  delete (visible as { _recent?: unknown })._recent;
-
-  if (Object.keys(visible).length === 0) return null;
-
-  return (
-    <details className="mt-6 rounded-2xl border border-border bg-surface p-6">
-      <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted">
-        What Chia knows about you
-      </summary>
-      <pre className="mt-3 text-xs bg-bg border border-border rounded-md p-3 overflow-x-auto scrollbar-thin">
-        {JSON.stringify(visible, null, 2)}
-      </pre>
-      <p className="mt-3 text-xs text-muted">
-        This is what Chia remembers between conversations. To delete this
-        data, email{" "}
-        <a className="underline" href={`mailto:${SUPPORT_EMAIL}`}>
-          {SUPPORT_EMAIL}
-        </a>
-        .
-      </p>
-    </details>
   );
 }
 
