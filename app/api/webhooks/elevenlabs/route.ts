@@ -52,8 +52,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (userErr || !user) {
+    // Mask the phone in the response so the error body (which may end
+    // up in third-party logs / Sentry / etc.) doesn't carry a plaintext
+    // E.164 number.
+    const { maskWhatsAppNumber } = await import("@/lib/utils");
     return NextResponse.json(
-      { error: `user not found for ${whatsapp_number}` },
+      { error: `user not found for ${maskWhatsAppNumber(whatsapp_number)}` },
       { status: 404 },
     );
   }

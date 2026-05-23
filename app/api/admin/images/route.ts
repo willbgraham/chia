@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
+import {
+  sniffImageMimeFromArrayBuffer,
+  MAX_IMAGE_BYTES,
+} from "@/lib/upload-validation";
 import type { ImageContext } from "@/types";
 
 export const runtime = "nodejs";
@@ -90,16 +94,38 @@ export async function POST(request: NextRequest) {
   const created = [];
 
   for (const file of files) {
+    // Hard size cap — bail before reading anything large into memory.
+    if (file.size > MAX_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: `file "${file.name}" exceeds ${MAX_IMAGE_BYTES} bytes` },
+        { status: 413 },
+      );
+    }
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const path = `teachers/${teacherId}/${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 8)}-${safeName}`;
     const arrayBuf = await file.arrayBuffer();
 
+    // Magic-byte sniff — refuses anything that isn't a real PNG/JPEG/
+    // WebP/GIF. Blocks SVG (XSS vector) and HTML/PDF disguised as image.
+    const sniffedMime = sniffImageMimeFromArrayBuffer(arrayBuf);
+    if (!sniffedMime) {
+      return NextResponse.json(
+        {
+          error: `file "${file.name}" is not a supported image (PNG/JPEG/WebP/GIF required)`,
+        },
+        { status: 415 },
+      );
+    }
+
     const { error: upErr } = await sb.storage
       .from(BUCKET)
       .upload(path, arrayBuf, {
-        contentType: file.type || "application/octet-stream",
+        // Use the sniffed type, never the client-declared one. This
+        // ensures the bucket serves the file with the correct
+        // Content-Type and ignores any "image/png" lie from the client.
+        contentType: sniffedMime,
         upsert: false,
       });
     if (upErr) {

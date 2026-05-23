@@ -6,6 +6,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth";
+import {
+  sniffImageMimeFromArrayBuffer,
+  MAX_IMAGE_BYTES,
+} from "@/lib/upload-validation";
 
 export const runtime = "nodejs";
 
@@ -30,6 +34,12 @@ export async function POST(
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "file required" }, { status: 400 });
   }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json(
+      { error: `file exceeds ${MAX_IMAGE_BYTES} bytes` },
+      { status: 413 },
+    );
+  }
 
   const sb = getAdminClient();
 
@@ -37,8 +47,21 @@ export async function POST(
   const path = `teachers/${params.id}/profile/${Date.now()}-${safeName}`;
   const arrayBuf = await file.arrayBuffer();
 
+  // Magic-byte sniff. Refuses anything that isn't a real PNG/JPEG/WebP/
+  // GIF — blocks SVG (XSS vector) and HTML/PDF disguised as image.
+  const sniffedMime = sniffImageMimeFromArrayBuffer(arrayBuf);
+  if (!sniffedMime) {
+    return NextResponse.json(
+      {
+        error: "file is not a supported image (PNG/JPEG/WebP/GIF required)",
+      },
+      { status: 415 },
+    );
+  }
+
   const { error: upErr } = await sb.storage.from(BUCKET).upload(path, arrayBuf, {
-    contentType: file.type || "application/octet-stream",
+    // Use the sniffed type, never the client-declared one.
+    contentType: sniffedMime,
     upsert: false,
   });
   if (upErr) {

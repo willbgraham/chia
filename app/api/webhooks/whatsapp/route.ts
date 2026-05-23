@@ -71,7 +71,15 @@ export async function POST(request: NextRequest) {
       try {
         await handleInbound(msg);
       } catch (err) {
-        console.error("[whatsapp inbound] handler error:", err, "msg:", msg);
+        // Mask the phone number before logging so a stray Vercel log
+        // (or any ingest pipeline downstream — Datadog/Sentry/etc.)
+        // doesn't end up holding E.164 numbers in plaintext.
+        const { maskWhatsAppNumber } = await import("@/lib/utils");
+        const safeMsg = {
+          ...msg,
+          whatsappNumber: maskWhatsAppNumber(msg.whatsappNumber),
+        };
+        console.error("[whatsapp inbound] handler error:", err, "msg:", safeMsg);
       }
     }),
   );

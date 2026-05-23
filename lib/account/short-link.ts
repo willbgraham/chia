@@ -14,10 +14,15 @@ const ALPHABET =
 const SHORT_ID_LENGTH = 8;
 
 function generateShortId(): string {
-  const bytes = crypto.randomBytes(SHORT_ID_LENGTH);
+  // Use crypto.randomInt to pick each character — gives a uniform
+  // distribution across the 62-char alphabet. The previous "bytes[i] %
+  // ALPHABET.length" approach was slightly biased toward the first
+  // (256 % 62 = 8) characters of the alphabet because 256 is not a
+  // multiple of 62. Not exploitable at our keyspace (~218T) but worth
+  // fixing for correctness.
   let out = "";
   for (let i = 0; i < SHORT_ID_LENGTH; i++) {
-    out += ALPHABET[bytes[i] % ALPHABET.length];
+    out += ALPHABET[crypto.randomInt(0, ALPHABET.length)];
   }
   return out;
 }
