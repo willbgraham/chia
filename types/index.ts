@@ -34,6 +34,7 @@ export type ConversationStateName =
   | "awaiting_audio_confirm"
   | "awaiting_voice_note"
   | "awaiting_quiz_answer"
+  | "awaiting_module_quiz"
   | "idle";
 
 // ── Memory JSON ────────────────────────────────────────────────────────────
@@ -69,6 +70,15 @@ export interface MemoryJson {
   inside_references?: string[];
   last_session?: string;
   streak_days?: number;
+  // ── Module-quiz state (end-of-module checkpoint) ────────────────────────
+  // pending_module_quiz: ephemeral state for an in-progress checkpoint
+  // quiz. Cleared on completion/skip. See lib/handlers/module-quiz.ts
+  // for the PendingModuleQuiz shape.
+  pending_module_quiz?: unknown;
+  // completed_module_quizzes: keys like "advanced::5" (level::moduleIdx).
+  // Tracks which modules we've already prompted a checkpoint quiz for —
+  // prevents re-prompting the same module on every "next lesson".
+  completed_module_quizzes?: string[];
 }
 
 // ── Lesson content JSON ────────────────────────────────────────────────────

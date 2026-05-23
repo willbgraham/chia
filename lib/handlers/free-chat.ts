@@ -29,6 +29,10 @@ interface FreeChatArgs {
   teacherId: string | null;
   userPlan: "free" | "premium";
   userMessage: string;
+  // Optional — only callers that have it (route-message, voice-note,
+  // audio-confirm) plumb it through. Used by the manual module-quiz
+  // trigger to gate the audio quota for the listening quiz.
+  billingPeriodStart?: string | null;
 }
 
 export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
@@ -61,6 +65,22 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
     await resumeCurrentLesson(args);
     return;
   }
+  // Module checkpoint quiz (manual trigger). Bigger than the single
+  // pop quiz — runs 3 questions of the chosen type (Reading / Listening
+  // / Speaking) on the student's current module. The auto-trigger fires
+  // from startOrAdvanceLesson; this is the "let me try it again" entry.
+  const moduleQuizIntent = matchModuleQuizIntent(args.userMessage);
+  if (moduleQuizIntent !== null) {
+    await launchManualModuleQuiz({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      userPlan: args.userPlan,
+      billingPeriodStart: args.billingPeriodStart ?? null,
+      specificType: moduleQuizIntent === "any" ? null : moduleQuizIntent,
+    });
+    return;
+  }
+
   // "Quiz me" / "test me" / "pop quiz" → send an interactive
   // multiple-choice question pulled from a completed (or current)
   // lesson item. Answer flows through the awaiting_quiz_answer
@@ -474,6 +494,95 @@ async function sendProgressSummary(args: FreeChatArgs): Promise<void> {
   });
 }
 
+// Module checkpoint quiz trigger. Returns "reading"/"listening"/"speaking"
+// if they named a specific type, "any" if they used a generic phrase, or
+// null if they said nothing about a module quiz. Order of checks
+// matters — match specific types BEFORE the generic phrase.
+function matchModuleQuizIntent(
+  message: string,
+): "reading" | "listening" | "speaking" | "any" | null {
+  const t = message.toLowerCase();
+  if (/\b(speaking|speak|hablar)\s+(quiz|test|exam)\b/.test(t)) return "speaking";
+  if (/\b(listening|listen|escucha|hearing)\s+(quiz|test|exam)\b/.test(t)) return "listening";
+  if (/\b(reading|read|lectura)\s+(quiz|test|exam)\b/.test(t)) return "reading";
+  if (/\b(module|checkpoint|end[- ]of[- ]module|module[- ]checkpoint)\s+(quiz|test|exam|review)\b/.test(t)) return "any";
+  return null;
+}
+
+// Manual entry to the module-quiz flow. Anchors the quiz on the
+// module containing the student's current curriculum position so
+// the questions feel grounded in what they've been working on.
+// Premium gate on listening/speaking happens inside handleQuizChoice.
+async function launchManualModuleQuiz(args: {
+  userId: string;
+  whatsappNumber: string;
+  userPlan: "free" | "premium";
+  billingPeriodStart: string | null;
+  specificType: "reading" | "listening" | "speaking" | null;
+}): Promise<void> {
+  const { getModulesForLevel } = await import("@/lib/handlers/curriculum");
+  const {
+    offerCheckpointQuiz,
+    handleQuizChoice,
+  } = await import("@/lib/handlers/module-quiz");
+
+  const memory = await getMemory(args.userId);
+  const level = memory.level ?? "beginner";
+  const pos = memory.curriculum_position;
+  const modules = getModulesForLevel(level);
+
+  // Resolve which module to quiz on:
+  //   1. The module containing the student's current_topic
+  //   2. Fallback: the first module of their level
+  let moduleIdx = -1;
+  if (pos?.current_topic) {
+    moduleIdx = modules.findIndex((m) => m.topics.includes(pos.current_topic!));
+  }
+  if (moduleIdx === -1 && modules.length > 0) moduleIdx = 0;
+  if (moduleIdx === -1) {
+    await sendText(
+      args.whatsappNumber,
+      "I don't have a module ready to quiz you on yet 🌿 Tell me *next lesson* to start.",
+    );
+    return;
+  }
+
+  const mod = modules[moduleIdx];
+  if (args.specificType) {
+    // Stash a "choosing" pending so handleQuizChoice has the module
+    // context it expects, then jump straight to the chosen type.
+    const { patchMemory } = await import("@/lib/handlers/memory");
+    const pending = {
+      module_key: `${level}::${moduleIdx}`,
+      module_idx: moduleIdx,
+      module_name: mod.name,
+      level,
+      phase: "choosing" as const,
+    };
+    await patchMemory(args.userId, {
+      pending_module_quiz: pending,
+    });
+    await updateState(args.userId, { state: "awaiting_module_quiz" });
+    await handleQuizChoice({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      choice: args.specificType,
+      userPlan: args.userPlan,
+      billingPeriodStart: args.billingPeriodStart,
+    });
+    return;
+  }
+
+  // Generic "module quiz" trigger — show the 3-button picker.
+  await offerCheckpointQuiz({
+    userId: args.userId,
+    whatsappNumber: args.whatsappNumber,
+    moduleIdx,
+    moduleName: mod.name,
+    level,
+  });
+}
+
 // "Quiz me" / "test me" / "pop quiz" — student wants a quick
 // multiple-choice question. sendQuiz pulls from completed (or
 // current) lesson items and uses WhatsApp interactive buttons.
@@ -594,6 +703,31 @@ async function startOrAdvanceLesson(args: FreeChatArgs): Promise<void> {
     role: "user",
     content: args.userMessage,
   });
+
+  // Checkpoint quiz hook: if the lesson they just completed was the
+  // last lesson of a module they haven't been quiz-prompted on yet,
+  // offer the Reading/Listening/Speaking checkpoint instead of
+  // delivering the next lesson. handleLesson runs on the user's
+  // *next* turn once the quiz finishes (or they skip).
+  try {
+    const { checkModuleCompletion, offerCheckpointQuiz } = await import(
+      "@/lib/handlers/module-quiz"
+    );
+    const done = await checkModuleCompletion(args.userId);
+    if (done) {
+      await offerCheckpointQuiz({
+        userId: args.userId,
+        whatsappNumber: args.whatsappNumber,
+        moduleIdx: done.moduleIdx,
+        moduleName: done.moduleName,
+        level: done.level,
+      });
+      return;
+    }
+  } catch (err) {
+    // Best-effort — don't block the lesson if the quiz hook errors.
+    console.error("[free-chat] module-quiz check failed:", err);
+  }
 
   // Switch state and fire the lesson handler immediately.
   await updateState(args.userId, { state: "active_structured_lesson" });

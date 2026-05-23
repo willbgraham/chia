@@ -11,6 +11,13 @@ import { handleAudioConfirm } from "@/lib/handlers/audio-confirm";
 import { handleVoiceNote } from "@/lib/handlers/voice-note";
 import { handleQuizAnswer } from "@/lib/handlers/quiz";
 import {
+  handleQuizAnswer as handleModuleQuizAnswer,
+  handleQuizChoice as handleModuleQuizChoice,
+  handleQuizVoice as handleModuleQuizVoice,
+  parseChoiceFromButtonId as parseModuleQuizChoice,
+  parseChoiceText as parseModuleQuizChoiceText,
+} from "@/lib/handlers/module-quiz";
+import {
   getOrCreateState,
   touchLastMessage,
   updateState as updateStateInline,
@@ -68,6 +75,29 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userPlan: user.plan,
         teacherId: user.teacher_id,
       });
+    } else if (state.state === "awaiting_module_quiz") {
+      // Two possibilities: they tapped Reading/Listening/Speaking
+      // (mq_* ids = choice phase) or they tapped an answer option
+      // (anything else = running phase).
+      const choice = parseModuleQuizChoice(msg.buttonReplyId);
+      if (choice) {
+        await handleModuleQuizChoice({
+          userId: user.id,
+          whatsappNumber: msg.whatsappNumber,
+          choice,
+          userPlan: user.plan,
+          billingPeriodStart: user.billing_period_start,
+        });
+      } else {
+        await handleModuleQuizAnswer({
+          userId: user.id,
+          whatsappNumber: msg.whatsappNumber,
+          buttonReplyId: msg.buttonReplyId ?? null,
+          textFallback: null,
+          userPlan: user.plan,
+          billingPeriodStart: user.billing_period_start,
+        });
+      }
     } else {
       // Stray button reply (state cleared in another tab, expired
       // quiz, etc.) — soft acknowledge and reset.
@@ -85,6 +115,18 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
 
   if (msg.type === "audio") {
     if (!msg.audioMediaId) return;
+    // Speaking-quiz voice notes are routed to the module-quiz handler;
+    // everything else flows through the normal voice-note pipeline.
+    if (state.state === "awaiting_module_quiz") {
+      await handleModuleQuizVoice({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        audioMediaId: msg.audioMediaId,
+        userPlan: user.plan,
+        billingPeriodStart: user.billing_period_start,
+      });
+      return;
+    }
     await handleVoiceNote({
       userId: user.id,
       whatsappNumber: msg.whatsappNumber,
@@ -145,6 +187,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         teacherId: user.teacher_id,
         userPlan: user.plan,
         userMessage: msg.textBody,
+        billingPeriodStart: user.billing_period_start,
       });
       return;
 
@@ -185,6 +228,34 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
       });
       return;
 
+    case "awaiting_module_quiz":
+      // Text fallback for module quiz. During the "choosing" phase
+      // a text reply might be "reading" / "skip"; during the
+      // "running" phase it might be "1"/"2"/"3" answering an MCQ.
+      // The handler infers from memory.pending_module_quiz.phase.
+      {
+        const choice = parseModuleQuizChoiceText(msg.textBody);
+        if (choice) {
+          await handleModuleQuizChoice({
+            userId: user.id,
+            whatsappNumber: msg.whatsappNumber,
+            choice,
+            userPlan: user.plan,
+            billingPeriodStart: user.billing_period_start,
+          });
+        } else {
+          await handleModuleQuizAnswer({
+            userId: user.id,
+            whatsappNumber: msg.whatsappNumber,
+            buttonReplyId: null,
+            textFallback: msg.textBody,
+            userPlan: user.plan,
+            billingPeriodStart: user.billing_period_start,
+          });
+        }
+      }
+      return;
+
     case "awaiting_voice_note":
       // Student sent text instead of a voice note. Drop the preamble —
       // it was firing on every text turn while stuck in this state.
@@ -200,6 +271,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         teacherId: user.teacher_id,
         userPlan: user.plan,
         userMessage: msg.textBody,
+        billingPeriodStart: user.billing_period_start,
       });
       return;
 
@@ -211,6 +283,7 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         teacherId: user.teacher_id,
         userPlan: user.plan,
         userMessage: msg.textBody,
+        billingPeriodStart: user.billing_period_start,
       });
   }
 
