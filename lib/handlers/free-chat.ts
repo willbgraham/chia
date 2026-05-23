@@ -349,9 +349,10 @@ async function sendCurriculumOverview(args: FreeChatArgs): Promise<void> {
   const level = memory.level ?? "beginner";
   const lessons = await getCurriculumForUser(args.userId, level);
   const overview = formatCurriculumForChat(lessons, level);
-  // Append a magic-link to the visual curriculum dashboard so
-  // students can tap into a real syllabus view + check off lessons.
-  const link = curriculumUrl(args.userId);
+  // Append a short magic-link to the visual curriculum dashboard
+  // so students can tap into a real syllabus view + check off
+  // lessons. createShortLink fits the URL on one WhatsApp line.
+  const link = await curriculumUrl(args.userId);
   const text =
     `${overview}\n\n` +
     `📱 *Full visual view + check off what you've learned:*\n${link}\n` +
@@ -394,7 +395,7 @@ async function sendProgressSummary(args: FreeChatArgs): Promise<void> {
   const summary = formatProgressForChat(lessons, level);
   // Same link as the curriculum overview — once they're looking at
   // their progress, the next click should be the full visual dashboard.
-  const link = curriculumUrl(args.userId);
+  const link = await curriculumUrl(args.userId);
   const text =
     `${summary}\n\n` +
     `📱 *Full course + check-offs:*\n${link}\n` +
@@ -586,7 +587,7 @@ async function sendAccountLink(
   userId: string,
   userPlan: "free" | "premium",
 ): Promise<void> {
-  const url = accountUrl(userId);
+  const url = await accountUrl(userId);
   const support = process.env.SUPPORT_EMAIL ?? "support@chiachat.com";
   const intro =
     userPlan === "premium"

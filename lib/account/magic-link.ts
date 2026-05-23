@@ -93,20 +93,27 @@ export function verifyAccountToken(token: string): VerifiedToken | null {
   return { userId, expiresAt: expiry };
 }
 
-// Convenience: build the full URL Chia sends in WhatsApp.
-export function accountUrl(userId: string): string {
+// Build the full URL Chia sends in WhatsApp. Wraps the long signed
+// token in a short link (chiachat.com/c/aB3xK9pQ) so it fits on a
+// single WhatsApp line and survives copy-paste. The redirect inside
+// /c/[short] resolves to the long URL and the token check runs as
+// normal on the destination page.
+//
+// These functions are async because they insert a short_links row.
+// All callers were already in async contexts.
+import { createShortLink } from "@/lib/account/short-link";
+
+const TOKEN_TTL_HOURS = 24;
+
+export async function accountUrl(userId: string): Promise<string> {
   const token = signAccountToken(userId);
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
-  return `${base.replace(/\/+$/, "")}/account/${token}`;
+  return createShortLink(`/account/${token}`, TOKEN_TTL_HOURS);
 }
 
 // Deep-link to the curriculum dashboard sub-page. Same token, just
 // lands the student directly on the visual course agenda rather than
 // the generic account page.
-export function curriculumUrl(userId: string): string {
+export async function curriculumUrl(userId: string): Promise<string> {
   const token = signAccountToken(userId);
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
-  return `${base.replace(/\/+$/, "")}/account/${token}/curriculum`;
+  return createShortLink(`/account/${token}/curriculum`, TOKEN_TTL_HOURS);
 }
