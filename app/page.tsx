@@ -44,11 +44,140 @@ async function fetchChia(): Promise<ChiaTeacher | null> {
   }
 }
 
+// JSON-LD structured data. Three schemas inline below: Organization
+// (anchors the brand), Service (the Premium product), and FAQPage
+// (eligible for the rich-result Q&A block in Google search results).
+// All keys come from schema.org — see https://schema.org/Organization,
+// /Service, /FAQPage. Validate at https://validator.schema.org if
+// adding fields.
+function buildStructuredData(): string {
+  const site =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
+  const wa =
+    process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "436606412569";
+
+  const schemas = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "ChiaChat",
+      url: site,
+      logo: `${site}/icon.svg`,
+      description:
+        "Spanish language learning via WhatsApp chat with an AI tutor.",
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        url: `https://wa.me/${wa}`,
+        availableLanguage: ["English", "Spanish"],
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      serviceType: "Spanish language tutoring",
+      provider: { "@type": "Organization", name: "ChiaChat" },
+      areaServed: "Worldwide",
+      audience: { "@type": "Audience", audienceType: "Spanish language learners" },
+      description:
+        "Daily Spanish conversation practice with Chia, a teacher from Valencia. Lessons, audio, voice-note pronunciation feedback, structured curriculum from A1 through C1, all on WhatsApp.",
+      offers: [
+        {
+          "@type": "Offer",
+          name: "Free",
+          price: "0",
+          priceCurrency: "EUR",
+          description:
+            "Daily Spanish chat, structured curriculum, pop quizzes, streak tracking.",
+        },
+        {
+          "@type": "Offer",
+          name: "Premium (monthly)",
+          price: "25",
+          priceCurrency: "EUR",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price: "25",
+            priceCurrency: "EUR",
+            unitCode: "MON",
+          },
+          description:
+            "Everything in Free plus voice notes from Chia, pronunciation correction, contextual photos, PDF cheat sheets, long-term memory, 500 messages/day.",
+        },
+        {
+          "@type": "Offer",
+          name: "Premium (annual)",
+          price: "200",
+          priceCurrency: "EUR",
+          description: "All Premium features, billed annually — saves €100/year.",
+        },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Do I need to install an app to use ChiaChat?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text:
+              "No. ChiaChat runs entirely inside WhatsApp — the app you already have. Tap the link, say hola, and you're learning.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Is ChiaChat free?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text:
+              "Yes, the free tier includes daily Spanish chat with Chia, English translations under every reply, a structured curriculum from A1 to C1, pop quizzes, and streak tracking. Premium (€25/month or €200/year) adds voice notes, pronunciation correction, contextual photos and PDFs.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "What level of Spanish do I need to start?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text:
+              "Any level — Chia adapts to you. The structured curriculum covers A1 (beginner) through C1 (advanced) with 84 lessons across 28 modules. Chia replies in Spanish then English so you always know what she said.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can I cancel Premium at any time?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text:
+              "Yes. Subscriptions cancel anytime from your account page or by messaging Chia 'cancel'. You keep premium access until the end of the billing period.",
+          },
+        },
+      ],
+    },
+  ];
+  // Escape "<" so a stray "</script>" in any value (now or in a
+  // future edit) can't break out of the inline JSON-LD <script> tag.
+  // < is a valid JSON sequence + safe inside a script body.
+  return JSON.stringify(schemas).replace(/</g, "\\u003c");
+}
+
 export default async function Home() {
   const chia = await fetchChia();
+  const jsonLd = buildStructuredData();
 
   return (
     <main className="min-h-screen bg-bg text-text">
+      {/* JSON-LD structured data — emits as inline <script> with
+          application/ld+json type, the format Google + Bing parse
+          for rich-result eligibility. */}
+      <script
+        type="application/ld+json"
+        // Safe: content is built server-side from constants + env vars,
+        // no user input. JSON.stringify never produces </script>
+        // sequences from these inputs.
+        dangerouslySetInnerHTML={{ __html: jsonLd }}
+      />
       {/* ─── Header ─────────────────────────────────────────────── */}
       <header className="max-w-6xl mx-auto px-6 pt-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
