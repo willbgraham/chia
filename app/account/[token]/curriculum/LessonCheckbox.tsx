@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Play, RotateCcw } from "lucide-react";
 
-// A single lesson row with a click-to-toggle completion checkbox.
-// Optimistically updates the UI, then POSTs to the API. Rolls back
-// on error.
+// A single lesson row with two actions:
+//   1. Toggle checkbox — marks lesson complete / re-learn
+//   2. "Learn" / "Relearn" button — sets curriculum_position to this
+//      lesson and deep-links into WhatsApp so Chia starts it
+//
+// Both actions go through their own API endpoints with the magic
+// link token in the path.
 
 interface Props {
   token: string;
@@ -25,6 +29,7 @@ export function LessonCheckbox({
   const [completed, setCompleted] = useState(initialCompleted);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [launching, setLaunching] = useState(false);
 
   function toggle() {
     if (isPending) return;
@@ -54,48 +59,112 @@ export function LessonCheckbox({
     });
   }
 
+  async function launchLesson() {
+    if (launching) return;
+    setLaunching(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/account/${encodeURIComponent(token)}/start-lesson`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lesson_id: lessonId }),
+        },
+      );
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `failed (${res.status})`);
+      }
+      const j = (await res.json()) as { url: string };
+      // Tiny pause so the user sees the loader register, then bounce
+      // to WhatsApp. window.location keeps the back-button behavior
+      // intact if they come back to the dashboard.
+      window.location.href = j.url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed");
+      setLaunching(false);
+    }
+  }
+
   return (
-    <button
-      type="button"
-      onClick={toggle}
+    <div
       className={
         "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors " +
         (isCurrent
-          ? "bg-accent/10 border border-accent/30 hover:bg-accent/15"
+          ? "bg-accent/10 border border-accent/30"
           : "border border-transparent hover:bg-bg")
       }
     >
-      <span
-        className={
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors " +
-          (completed
-            ? "bg-accent border-accent text-bg"
-            : "border-border bg-bg group-hover:border-muted")
-        }
-        aria-hidden
+      {/* Checkbox */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={completed ? "Mark as not done" : "Mark as done"}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors"
+        style={{
+          backgroundColor: completed ? "var(--accent, #e85d75)" : undefined,
+          borderColor: completed ? "var(--accent, #e85d75)" : undefined,
+          color: completed ? "var(--bg, #0b0d10)" : undefined,
+        }}
       >
         {isPending ? (
           <Loader2 className="h-3 w-3 animate-spin" />
         ) : completed ? (
           <Check className="h-3.5 w-3.5" strokeWidth={3} />
         ) : null}
-      </span>
-      <span
-        className={
-          "flex-1 leading-snug " +
-          (completed ? "text-muted line-through" : "text-text")
-        }
+      </button>
+
+      {/* Title — also clickable to toggle (bigger tap target) */}
+      <button
+        type="button"
+        onClick={toggle}
+        className="flex-1 text-left leading-snug"
       >
-        {title}
+        <span className={completed ? "text-muted line-through" : "text-text"}>
+          {title}
+        </span>
         {isCurrent ? (
           <span className="ml-2 text-[10px] uppercase tracking-wide text-accent">
             current
           </span>
         ) : null}
-      </span>
-      {error ? (
-        <span className="text-xs text-danger">!</span>
-      ) : null}
-    </button>
+      </button>
+
+      {/* Learn / Relearn launch button */}
+      <button
+        type="button"
+        onClick={launchLesson}
+        disabled={launching}
+        className={
+          "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors " +
+          (completed
+            ? "border border-border bg-bg text-muted hover:text-text hover:border-muted"
+            : "bg-accent text-bg hover:opacity-90") +
+          (launching ? " opacity-60 cursor-wait" : "")
+        }
+        title={
+          completed
+            ? "Relearn this lesson with Chia"
+            : "Start this lesson with Chia"
+        }
+      >
+        {launching ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : completed ? (
+          <>
+            <RotateCcw className="h-3 w-3" />
+            Relearn
+          </>
+        ) : (
+          <>
+            <Play className="h-3 w-3" />
+            Learn
+          </>
+        )}
+      </button>
+
+      {error ? <span className="text-xs text-danger">!</span> : null}
+    </div>
   );
 }
