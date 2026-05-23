@@ -53,18 +53,30 @@ export default async function CurriculumPage({
   if (!userRow) notFound();
   const user = userRow as User;
   const memory = (user.memory_json ?? {}) as MemoryJson;
-  const level = memory.level ?? "beginner";
+  const currentLevel = memory.level ?? "beginner";
 
-  // Pull the full curriculum for this student's level. The helper
-  // joins lessons + user_lesson_progress and adds the {completed,
-  // current} flags we render here.
-  const lessons = await getCurriculumForUser(verified.userId, level);
-  const modules = groupByModule(lessons, level);
+  // Fetch the FULL curriculum across all three levels so students
+  // see the whole course ahead of them — not just their current
+  // level. Modules from other levels stay collapsed by default; the
+  // student's current level expands its current module.
+  const LEVELS = ["beginner", "intermediate", "advanced"] as const;
+  const sections = await Promise.all(
+    LEVELS.map(async (lvl) => {
+      const lessons = await getCurriculumForUser(verified.userId, lvl);
+      const modules = groupByModule(lessons, lvl);
+      const total = lessons.length;
+      const done = lessons.filter((l) => l.completed).length;
+      return { level: lvl, lessons, modules, total, done };
+    }),
+  );
 
-  const totalLessons = lessons.length;
-  const completedTotal = lessons.filter((l) => l.completed).length;
-  const pct =
-    totalLessons === 0 ? 0 : Math.round((completedTotal / totalLessons) * 100);
+  // Headline numbers: course-wide total + progress at the student's
+  // current level (the most meaningful "% done" for them today).
+  const grandTotal = sections.reduce((acc, s) => acc + s.total, 0);
+  const grandDone = sections.reduce((acc, s) => acc + s.done, 0);
+  const current = sections.find((s) => s.level === currentLevel) ?? sections[0];
+  const currentPct =
+    current.total === 0 ? 0 : Math.round((current.done / current.total) * 100);
 
   return (
     <main className="min-h-screen bg-bg text-text">
@@ -81,17 +93,26 @@ export default async function CurriculumPage({
           Your Spanish course
         </h1>
         <p className="mt-1 text-sm text-muted">
-          {humanLevel(level)} · {completedTotal} of {totalLessons} lessons done · {pct}%
+          {humanLevel(currentLevel)} · {current.done} of {current.total} lessons
+          done · {currentPct}%
         </p>
 
-        {/* Progress bar */}
+        {/* Progress bar tracks the user's CURRENT level so the
+            percentage feels achievable. Total course count goes in
+            the sub-line below. */}
         <div className="mt-4 h-2 rounded-full bg-surface border border-border overflow-hidden">
           <div
             className="h-full bg-accent transition-all"
-            style={{ width: `${pct}%` }}
+            style={{ width: `${currentPct}%` }}
             aria-hidden
           />
         </div>
+
+        {/* Course-wide stats — the "you've got a whole journey ahead" message. */}
+        <p className="mt-3 text-xs text-muted">
+          Full course: {grandTotal} lessons across A1, A2, B1, B2 & C1 —{" "}
+          {grandDone} done total.
+        </p>
 
         {/* Continue CTA */}
         <a
@@ -109,22 +130,56 @@ export default async function CurriculumPage({
           what she teaches next.
         </p>
 
-        {/* Modules */}
-        <div className="mt-8 space-y-3">
-          {modules.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border bg-surface p-6 text-sm text-muted text-center">
-              No curriculum set up yet for {humanLevel(level)} 🌿
-            </div>
-          ) : (
-            modules.map((mod, i) => (
-              <ModuleCard
-                key={mod.name}
-                token={params.token}
-                module={mod}
-                index={i}
-              />
-            ))
-          )}
+        {/* Sections per level. Each one rendered as a heading + that
+            level's modules. Visually clear when a level belongs to the
+            student today ("you are here") vs what's ahead. */}
+        <div className="mt-10 space-y-10">
+          {sections.map((section, sIdx) => {
+            const isCurrent = section.level === currentLevel;
+            const isFuture =
+              LEVELS.indexOf(section.level) >
+              LEVELS.indexOf(currentLevel as (typeof LEVELS)[number]);
+            if (section.modules.length === 0) return null;
+            const sectionPct =
+              section.total === 0
+                ? 0
+                : Math.round((section.done / section.total) * 100);
+            return (
+              <div key={section.level}>
+                <div className="flex items-baseline justify-between gap-3 mb-3">
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {humanLevel(section.level)}
+                    {isCurrent ? (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-accent/15 text-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                        You are here
+                      </span>
+                    ) : null}
+                    {isFuture && section.done === 0 ? (
+                      <span className="ml-2 inline-flex items-center rounded-full border border-border text-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                        Coming up
+                      </span>
+                    ) : null}
+                  </h2>
+                  <span className="text-xs text-muted shrink-0">
+                    {section.done}/{section.total} · {sectionPct}%
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {section.modules.map((mod, mIdx) => (
+                    <ModuleCard
+                      key={`${section.level}-${mod.name}`}
+                      token={params.token}
+                      module={mod}
+                      // Module numbering is global — keep counting
+                      // forward across levels so the dashboard reads
+                      // as one continuous syllabus.
+                      index={moduleGlobalIndex(sections, sIdx, mIdx)}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <p className="mt-12 text-xs text-muted text-center">
@@ -135,6 +190,20 @@ export default async function CurriculumPage({
       </div>
     </main>
   );
+}
+
+// Compute the global (cross-level) module index for "Module N — name"
+// headings. Treats the modules from beginner → intermediate → advanced
+// as one continuous list, so the student sees Module 1, 2, 3 … N
+// without a per-level reset.
+function moduleGlobalIndex(
+  sections: { modules: { name: string }[] }[],
+  sIdx: number,
+  mIdx: number,
+): number {
+  let offset = 0;
+  for (let i = 0; i < sIdx; i++) offset += sections[i].modules.length;
+  return offset + mIdx;
 }
 
 function humanLevel(level: string): string {
