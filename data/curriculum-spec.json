@@ -54,6 +54,74 @@
     { "level": "advanced", "cefr": "B1", "topic": "verb_conditional", "lesson_number": 1, "title": "Conditional — would and could",                      "focus": "hablaría, comería, viviría — endings -ía, -ías, etc. For polite requests, hypothetical situations." },
 
     { "level": "advanced", "cefr": "B1", "topic": "idioms",           "lesson_number": 1, "title": "Idioms 1 — daily expressions",                       "focus": "estar en las nubes, dar en el clavo, no tener pelos en la lengua, costar un ojo de la cara, echar una mano" },
-    { "level": "advanced", "cefr": "B1", "topic": "idioms",           "lesson_number": 2, "title": "Idioms 2 — emotions and reactions",                  "focus": "tener mala leche, estar hasta las narices, ser pan comido, montar un pollo, partirse de risa" }
+    { "level": "advanced", "cefr": "B1", "topic": "idioms",           "lesson_number": 2, "title": "Idioms 2 — emotions and reactions",                  "focus": "tener mala leche, estar hasta las narices, ser pan comido, montar un pollo, partirse de risa" },
+
+    { "level": "advanced", "cefr": "B1", "topic": "verb_subjunctive", "lesson_number": 3, "title": "Subjunctive in adjective clauses",                   "focus": "busco a alguien que hable inglés vs conozco a alguien que habla inglés — definite vs indefinite antecedents" },
+    { "level": "advanced", "cefr": "B1", "topic": "verb_subjunctive", "lesson_number": 4, "title": "Subjunctive with conjunctions",                      "focus": "para que, antes de que, sin que, a menos que, en caso de que — always trigger subjunctive" },
+
+    { "level": "advanced", "cefr": "B1", "topic": "verb_conditional", "lesson_number": 2, "title": "Conditional + if-clauses (basic)",                   "focus": "si tuviera dinero, viajaría — present-conditional pairs with imperfect subjunctive" },
+
+    { "level": "advanced", "cefr": "B1", "topic": "verb_perfect",     "lesson_number": 1, "title": "Present perfect — he/has/ha hablado",                 "focus": "haber + past participle: he comido, has visto. Used for recent actions in Spain ('hoy he ido al banco')" },
+    { "level": "advanced", "cefr": "B1", "topic": "verb_perfect",     "lesson_number": 2, "title": "Past perfect — había hablado",                       "focus": "había + past participle for actions completed before another past action: 'cuando llegué, ya había comido'" },
+
+    { "level": "advanced", "cefr": "B1", "topic": "pronouns_object",  "lesson_number": 1, "title": "Direct object pronouns — lo, la, los, las",         "focus": "replacing the direct object: lo veo, la conozco, los compré. Position before conjugated verbs." },
+    { "level": "advanced", "cefr": "B1", "topic": "pronouns_object",  "lesson_number": 2, "title": "Indirect object pronouns — me, te, le, nos, os, les", "focus": "le doy el libro a María, te lo digo. Combining direct + indirect: 'se lo dije' (le + lo → se lo)." },
+
+    { "level": "advanced", "cefr": "B1", "topic": "comparatives",     "lesson_number": 1, "title": "Comparisons — más que, menos que, tan como",         "focus": "más alto que, menos caro que, tan rápido como. Irregular forms: mejor/peor/mayor/menor." },
+
+    { "level": "advanced", "cefr": "B1", "topic": "idioms",           "lesson_number": 3, "title": "Idioms 3 — money, time, body",                       "focus": "estar sin blanca, ahorrarse un dinerillo, en un abrir y cerrar de ojos, hablar por los codos, ponerse las pilas" },
+
+    { "level": "advanced", "cefr": "B2", "topic": "verb_future",      "lesson_number": 1, "title": "Simple future — hablaré, comeré, viviré",            "focus": "endings -é, -ás, -á, -emos, -éis, -án. Mostly for predictions and probability, less for plans (use 'voy a' for those)." },
+    { "level": "advanced", "cefr": "B2", "topic": "verb_future",      "lesson_number": 2, "title": "Future perfect — habré hablado",                     "focus": "habré + past participle. For actions that will be completed before another future point. 'Para el lunes, habré terminado'." },
+
+    { "level": "advanced", "cefr": "B2", "topic": "verb_subjunctive_advanced", "lesson_number": 1, "title": "Imperfect subjunctive — hablara/hablase",  "focus": "two equally valid forms: hablara/hablase, comiera/comiese. Used in unreal conditions, past contexts, polite requests." },
+    { "level": "advanced", "cefr": "B2", "topic": "verb_subjunctive_advanced", "lesson_number": 2, "title": "Si-clauses — full system",                  "focus": "si + present + future; si + imperfect subjunctive + conditional; si + pluperfect subjunctive + conditional perfect" },
+    { "level": "advanced", "cefr": "B2", "topic": "verb_subjunctive_advanced", "lesson_number": 3, "title": "Subjunctive in narratives",                "focus": "subjunctive after past-tense main verbs (sequence of tenses): me dijo que viniera, esperaba que llegaras" },
+
+    { "level": "advanced", "cefr": "B2", "topic": "passive_voice",    "lesson_number": 1, "title": "Se-passive and impersonal se",                       "focus": "se vende casa, se habla español aquí. Impersonal vs reflexive vs passive uses of se." },
+    { "level": "advanced", "cefr": "B2", "topic": "passive_voice",    "lesson_number": 2, "title": "Passive with ser + por",                              "focus": "la novela fue escrita por Cervantes. When to use ser-passive vs se-passive in real Spanish (mostly written, formal)." },
+
+    { "level": "advanced", "cefr": "B2", "topic": "connectors",       "lesson_number": 1, "title": "Discourse connectors — sin embargo, por lo tanto",   "focus": "logical glue between sentences: sin embargo, no obstante, por lo tanto, en cambio, además, por consiguiente" },
+    { "level": "advanced", "cefr": "B2", "topic": "connectors",       "lesson_number": 2, "title": "Sequencing connectors — primero, después, finalmente", "focus": "narrating events in order: en primer lugar, a continuación, por último, mientras tanto, simultáneamente" },
+
+    { "level": "advanced", "cefr": "B2", "topic": "business_spanish", "lesson_number": 1, "title": "Business emails — formal greetings + structure",     "focus": "estimado/a, le escribo en relación a, quedo a la espera de su respuesta, atentamente, saludos cordiales" },
+    { "level": "advanced", "cefr": "B2", "topic": "business_spanish", "lesson_number": 2, "title": "In a meeting — agree, disagree, take the floor",     "focus": "permítame, en mi opinión, no estoy de acuerdo, podríamos considerar, llegar a un acuerdo, planteamiento" },
+    { "level": "advanced", "cefr": "B2", "topic": "business_spanish", "lesson_number": 3, "title": "Negotiating — flexibility and firmness",             "focus": "estamos abiertos a, no podemos aceptar menos de, dado el caso, en principio, es negociable, no nos compromete" },
+
+    { "level": "advanced", "cefr": "B2", "topic": "news_media",       "lesson_number": 1, "title": "Reading newspaper headlines",                         "focus": "common headline patterns: 'el gobierno aprueba...', noun-heavy syntax, key vocabulary for politics, economy, society" },
+    { "level": "advanced", "cefr": "B2", "topic": "news_media",       "lesson_number": 2, "title": "Following a Spanish podcast",                        "focus": "listening strategies for Spanish radio/podcasts. Common discourse markers, signposting phrases, regional accents." },
+
+    { "level": "advanced", "cefr": "B2", "topic": "opinions",         "lesson_number": 1, "title": "Expressing opinions — creo que, me parece, considero", "focus": "creo que + indicative (assertion); no creo que + subjunctive (doubt). Hedging: a mi modo de ver, según yo." },
+    { "level": "advanced", "cefr": "B2", "topic": "opinions",         "lesson_number": 2, "title": "Agreeing and disagreeing politely",                  "focus": "estoy de acuerdo, comparto su opinión, discrepo, no estoy del todo de acuerdo, hasta cierto punto" },
+
+    { "level": "advanced", "cefr": "B2", "topic": "storytelling",     "lesson_number": 1, "title": "Narrative tenses — preterite + imperfect together",  "focus": "the heart of Spanish storytelling: action verbs in preterite, scene-setting in imperfect. Hace dos años, vivía en Madrid cuando conocí a..." },
+    { "level": "advanced", "cefr": "B2", "topic": "storytelling",     "lesson_number": 2, "title": "Descriptive language — making scenes vivid",          "focus": "sensory details: olía a, se oía, se sentía, tenía el aspecto de. Comparisons: como si fuera, parecía que." },
+
+    { "level": "advanced", "cefr": "C1", "topic": "literary_language", "lesson_number": 1, "title": "Reading literature — Lorca, Borges, Marquez",       "focus": "navigating literary Spanish: archaic forms, metaphor, classical references. Common literary registers." },
+    { "level": "advanced", "cefr": "C1", "topic": "literary_language", "lesson_number": 2, "title": "Poetic devices — rhyme, alliteration, imagery",     "focus": "rima, aliteración, sinestesia, metáfora. How Spanish poetry uses sound + image. Examples from Antonio Machado and Pablo Neruda." },
+
+    { "level": "advanced", "cefr": "C1", "topic": "regional_variations", "lesson_number": 1, "title": "Castilian vs Latin American Spanish",             "focus": "vosotros vs ustedes, tú vs vos (Argentina), pronunciation differences (ll, c/z, s), vocabulary (coche/carro, ordenador/computadora)" },
+    { "level": "advanced", "cefr": "C1", "topic": "regional_variations", "lesson_number": 2, "title": "Mexican, Argentine, Andalusian flavor",            "focus": "characteristic words and phrasings: órale (Mexico), che/boludo (Argentina), pisha/quillo (Andalusia). Avoid stereotypes, recognize register." },
+
+    { "level": "advanced", "cefr": "C1", "topic": "debate",           "lesson_number": 1, "title": "Argumentation — structuring an argument",            "focus": "en primer lugar, por una parte... por otra, cabe destacar, no obstante, en conclusión. Formal debate structures." },
+    { "level": "advanced", "cefr": "C1", "topic": "debate",           "lesson_number": 2, "title": "Counter-arguments — refuting respectfully",          "focus": "si bien es cierto que..., no menos cierto es que..., habría que matizar, ahí discrepo profundamente, con todo respeto" },
+
+    { "level": "advanced", "cefr": "C1", "topic": "sophisticated_idioms", "lesson_number": 1, "title": "Sophisticated idioms — high-register expressions", "focus": "darle vueltas a algo, ir al grano, dar en el clavo (advanced uses), hacer la vista gorda, salirse con la suya, no dar pie con bola" },
+    { "level": "advanced", "cefr": "C1", "topic": "sophisticated_idioms", "lesson_number": 2, "title": "Literary idioms — appearing in books and film",   "focus": "expressions you'll see in novels and serious films: ahogarse en un vaso de agua, romper el hielo, llover sobre mojado, ser harina de otro costal" },
+
+    { "level": "advanced", "cefr": "C1", "topic": "academic_spanish", "lesson_number": 1, "title": "Academic essay structure",                            "focus": "introducción, planteamiento, desarrollo, conclusión. Common transitions in academic Spanish: cabe señalar, conviene resaltar, en este sentido." },
+    { "level": "advanced", "cefr": "C1", "topic": "academic_spanish", "lesson_number": 2, "title": "Citations and formal references",                    "focus": "según afirma, tal como sostiene, citado en, op. cit. Formal hedging: presumiblemente, hipotéticamente, en lo concerniente a." },
+
+    { "level": "advanced", "cefr": "C1", "topic": "cultural_references", "lesson_number": 1, "title": "Cultural references — history and politics",     "focus": "la Guerra Civil, la Transición, el franquismo, la movida madrileña, the EU integration. Allows engaging with adult conversations about Spain." },
+    { "level": "advanced", "cefr": "C1", "topic": "cultural_references", "lesson_number": 2, "title": "Art, music, and cinema references",                "focus": "Goya, Velázquez, Almodóvar, Cervantes, flamenco, the Movement, the Boom in Latin American literature. Cultural touchstones." },
+
+    { "level": "advanced", "cefr": "C1", "topic": "humor",            "lesson_number": 1, "title": "Humor — sarcasm, irony, double meaning",             "focus": "ironía, sarcasmo, doble sentido. How Spaniards joke vs how to recognize when someone's teasing. 'Sí, claro' (sarcastic), '¿En serio?'" },
+    { "level": "advanced", "cefr": "C1", "topic": "humor",            "lesson_number": 2, "title": "Wordplay — puns, retruécanos, expressions",          "focus": "Spanish loves puns. Examples from everyday speech + how to construct your own. Cultural references that make jokes land." },
+
+    { "level": "advanced", "cefr": "C1", "topic": "relationships",    "lesson_number": 1, "title": "Discussing love and partnership",                    "focus": "estar enamorado/a, querer vs amar, el amor de mi vida, romper, dejar a alguien, ser pareja, comprometerse, casarse" },
+    { "level": "advanced", "cefr": "C1", "topic": "relationships",    "lesson_number": 2, "title": "Friendship and conflict — nuanced vocabulary",       "focus": "lealtad, traición, perdonar, guardar rencor, hacerse el sueco, dar la espalda, contar con alguien, ser un buen amigo" },
+
+    { "level": "advanced", "cefr": "C1", "topic": "philosophy",       "lesson_number": 1, "title": "Abstract concepts — sentido, esencia, libertad",     "focus": "el sentido de la vida, la libertad individual, la ética, el deber, la moralidad. Sophisticated vocabulary for deep discussions." },
+    { "level": "advanced", "cefr": "C1", "topic": "philosophy",       "lesson_number": 2, "title": "Existential questions — being and time",              "focus": "el tiempo, la existencia, el ser, la muerte, el destino. Influenced by Spanish existentialism (Unamuno, Ortega y Gasset)." }
   ]
 }

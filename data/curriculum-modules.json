@@ -1,5 +1,5 @@
 {
-  "_comment": "Module structure for the Spanish curriculum. Groups topics into pedagogically-coherent modules within each level. This is the spine of 'class-like' structure: students progress through modules in order, completing all topics in a module before unlocking the next. Edit this file to rearrange — no schema migration needed. The 'topics' array order also defines progression order within the module. Topics referenced here MUST exist in public.lessons (or they're silently skipped). Topics in public.lessons NOT listed here get an 'Other' bucket at the bottom of the student's level.",
+  "_comment": "Module structure for the Spanish curriculum. Groups topics into pedagogically-coherent modules within each level. This is the spine of 'class-like' structure: students progress through modules in order, completing all topics in a module before unlocking the next. Edit this file to rearrange — no schema migration needed. The 'topics' array order also defines progression order within the module. Topics referenced here MUST exist in public.lessons (or they're silently skipped). Topics in public.lessons NOT listed here get an 'Other' bucket at the bottom of the student's level. Note: 'advanced' covers B1, B2, and C1 — modules are ordered so they progress through CEFR levels.",
 
   "modules": {
     "beginner": [
@@ -48,14 +48,104 @@
     ],
     "advanced": [
       {
-        "name": "Beyond the Basics",
+        "name": "Beyond the Basics (B1)",
         "description": "Subjunctive and conditional — for when reality bends.",
         "topics": ["verb_subjunctive", "verb_conditional"]
       },
       {
-        "name": "Sound Like a Local",
+        "name": "Perfect Tenses (B1)",
+        "description": "Present perfect and past perfect — talking about what has happened.",
+        "topics": ["verb_perfect"]
+      },
+      {
+        "name": "Object Pronouns (B1)",
+        "description": "Direct and indirect object pronouns — sounding natural in fast speech.",
+        "topics": ["pronouns_object"]
+      },
+      {
+        "name": "Making Comparisons (B1)",
+        "description": "Más que, menos que, tan como — comparing people, places, and things.",
+        "topics": ["comparatives"]
+      },
+      {
+        "name": "Sound Like a Local (B1)",
         "description": "Idioms and expressions Spaniards actually use.",
         "topics": ["idioms"]
+      },
+      {
+        "name": "Future Tenses (B2)",
+        "description": "Simple future and future perfect — predictions, plans, and probabilities.",
+        "topics": ["verb_future"]
+      },
+      {
+        "name": "Subjunctive Mastery (B2)",
+        "description": "Imperfect subjunctive, si-clauses, sequence of tenses — the deep end of Spanish grammar.",
+        "topics": ["verb_subjunctive_advanced"]
+      },
+      {
+        "name": "Passive Voice & Connectors (B2)",
+        "description": "Se-passive, ser+por, and the discourse glue that makes you sound fluent.",
+        "topics": ["passive_voice", "connectors"]
+      },
+      {
+        "name": "Business Spanish (B2)",
+        "description": "Formal emails, meetings, and negotiations — Spanish for work.",
+        "topics": ["business_spanish"]
+      },
+      {
+        "name": "News & Media (B2)",
+        "description": "Reading newspapers, following Spanish podcasts — engaging with real media.",
+        "topics": ["news_media"]
+      },
+      {
+        "name": "Opinions & Debate (B2)",
+        "description": "Expressing what you think, agreeing and disagreeing politely.",
+        "topics": ["opinions"]
+      },
+      {
+        "name": "Storytelling (B2)",
+        "description": "Narrating events, painting scenes — making your Spanish vivid.",
+        "topics": ["storytelling"]
+      },
+      {
+        "name": "Literary Language (C1)",
+        "description": "Reading Lorca, Borges, Neruda — navigating literary Spanish.",
+        "topics": ["literary_language"]
+      },
+      {
+        "name": "Regional Variations (C1)",
+        "description": "Castilian vs Latin American Spanish, regional flavor and identity.",
+        "topics": ["regional_variations"]
+      },
+      {
+        "name": "Argument & Debate (C1)",
+        "description": "Structuring arguments, refuting respectfully — formal debate.",
+        "topics": ["debate"]
+      },
+      {
+        "name": "Advanced Idioms (C1)",
+        "description": "High-register and literary idioms — the language you find in novels and serious films.",
+        "topics": ["sophisticated_idioms"]
+      },
+      {
+        "name": "Academic Spanish (C1)",
+        "description": "Essay structure, formal citations — Spanish for university and research.",
+        "topics": ["academic_spanish"]
+      },
+      {
+        "name": "Cultural Mastery (C1)",
+        "description": "History, politics, art, music, cinema — the references that anchor adult conversations.",
+        "topics": ["cultural_references"]
+      },
+      {
+        "name": "Humor & Irony (C1)",
+        "description": "Sarcasm, double meaning, wordplay — joking like a native speaker.",
+        "topics": ["humor"]
+      },
+      {
+        "name": "Deep Conversations (C1)",
+        "description": "Love, friendship, philosophy — the vocabulary for the conversations that matter most.",
+        "topics": ["relationships", "philosophy"]
       }
     ]
   }

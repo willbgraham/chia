@@ -140,7 +140,7 @@ export default async function CurriculumPage({
 function humanLevel(level: string): string {
   if (level === "beginner") return "Beginner (A1)";
   if (level === "intermediate") return "Intermediate (A2)";
-  if (level === "advanced") return "Advanced (B1)";
+  if (level === "advanced") return "Advanced (B1–C1)";
   return level.charAt(0).toUpperCase() + level.slice(1);
 }
 
