@@ -273,7 +273,7 @@ async function formatLesson(
       { role: "system", content: filledSystem },
       {
         role: "user",
-        content: `Format this lesson as a short WhatsApp message in your voice. Don't list every item — pick the most important 5–8, group naturally, use line breaks generously. End by offering to say the first phrase aloud using EXACTLY this pattern: Want to hear me say "[phrase]"? 🎵 — keep the whole message under 700 chars.
+        content: `Format this lesson as a WhatsApp message in your voice. List EVERY vocabulary and phrase item — don't summarise, don't drop any. Group related items together with line breaks (e.g. all days on one block, all months on another). Include the pronunciation guide in parentheses when one is provided. Skip "rule" items unless they're essential context. Keep your own commentary minimal (one short intro line + one short closing line) — the items themselves are the lesson. Do NOT end with any "Want to hear me say..." offer; the audio plays automatically. Cap the whole message at 1100 characters.
 
 LESSON: ${lesson.title}
 ${lesson.content.introduction}
