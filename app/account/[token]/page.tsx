@@ -22,6 +22,7 @@ import { verifyAccountToken } from "@/lib/account/magic-link";
 import { formatDate, maskWhatsAppNumber } from "@/lib/utils";
 import { ManageSubscriptionButton } from "./ManageSubscriptionButton";
 import { ClearMemoryButton } from "./ClearMemoryButton";
+import { FeedbackForm } from "./FeedbackForm";
 import type { User } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -191,6 +192,11 @@ export default async function AccountPage({
             <ChevronRight className="h-4 w-4 text-muted shrink-0" aria-hidden />
           </div>
         </Link>
+
+        {/* ── Feedback ──────────────────────────────────────── */}
+        <div className="mt-6">
+          <FeedbackForm token={params.token} />
+        </div>
 
         {/* ── Privacy / memory control ──────────────────────── */}
         <div className="mt-6">

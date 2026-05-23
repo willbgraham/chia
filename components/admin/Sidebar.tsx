@@ -8,6 +8,7 @@ import {
   GraduationCap,
   BookOpen,
   FileText,
+  MessageSquare,
   LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +20,7 @@ const NAV = [
   { href: "/admin/lessons", label: "Lessons", icon: BookOpen },
   { href: "/admin/pdfs", label: "PDFs", icon: FileText },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/feedback", label: "Feedback", icon: MessageSquare },
 ];
 
 export function Sidebar() {

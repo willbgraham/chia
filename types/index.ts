@@ -196,6 +196,20 @@ export interface UserLessonProgress {
   notes: string | null;
 }
 
+// Student-submitted feedback. Rating is optional (1-5 stars); body
+// is the only required field. Admin marks resolved + can attach
+// internal admin_notes (never visible to the student).
+export interface Feedback {
+  id: string;
+  user_id: string;
+  rating: number | null;
+  body: string;
+  resolved: boolean;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Webhook payloads ───────────────────────────────────────────────────────
 export interface ElevenLabsWebhookBody {
   whatsapp_number: string;
