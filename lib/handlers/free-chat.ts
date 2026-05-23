@@ -320,26 +320,79 @@ function wantsNextLesson(message: string): boolean {
   return triggers.some((kw) => t.includes(kw));
 }
 
-// "Show me what we're going to learn" — overview of the full
-// curriculum at the student's level, with completed lessons + the
-// current pointer highlighted.
+// "Show me the course / agenda / lesson list" — overview of the
+// full curriculum at the student's level. Also fires when the
+// student asks for "the link" / "send me a link" since the
+// curriculum dashboard is the most common thing they'd want a
+// link to from Chia.
 function wantsCurriculumOverview(message: string): boolean {
   const t = message.toLowerCase();
   const triggers = [
-    "show me the curriculum",
-    "show me the lessons",
-    "what's the curriculum",
-    "what are we learning",
-    "what will we learn",
-    "what's the syllabus",
+    // Direct words for the course concept
+    "curriculum",
     "syllabus",
-    "what's left",
-    "what's next",
-    "what are we going to cover",
-    "what topics",
+    "agenda",
+
+    // Course-related phrases
+    "my course",
+    "the course",
     "full course",
     "course outline",
-    "the curriculum",
+    "course overview",
+    "course agenda",
+    "course link",
+    "course list",
+    "the program",
+    "the programme",
+
+    // Lesson-collection phrases
+    "lesson list",
+    "lessons list",
+    "list of lessons",
+    "all lessons",
+    "all the lessons",
+    "all my lessons",
+    "see all lessons",
+    "see the lessons",
+    "see my lessons",
+    "show me the lessons",
+    "show all lessons",
+    "lesson overview",
+    "lesson link",
+    "lessons link",
+
+    // Link / send-me variants — students often just want the URL
+    "send me the link",
+    "send me a link",
+    "send me the lessons",
+    "send me my lessons",
+    "give me the link",
+    "share the link",
+    "link to my lessons",
+    "link to my course",
+    "link to the course",
+    "link to lessons",
+
+    // "Show me my course"
+    "show me my course",
+    "show me the course",
+    "see my course",
+
+    // "What are we learning" variants
+    "what are we learning",
+    "what will we learn",
+    "what we're learning",
+    "what we are learning",
+    "what's left",
+    "what is left",
+    "what's next",
+    "what is next",
+    "what comes next",
+    "what topics",
+    "what are we going to cover",
+    "what are we covering",
+    "what's coming",
+    "what's coming up",
   ];
   return triggers.some((kw) => t.includes(kw));
 }
@@ -375,15 +428,23 @@ function wantsProgressSummary(message: string): boolean {
   const t = message.toLowerCase();
   const triggers = [
     "what have i learned",
+    "what i've learned",
     "my progress",
+    "show my progress",
+    "show me my progress",
     "how am i doing",
     "how am i progressing",
+    "how is my progress",
     "what i've covered",
     "what we've covered",
-    "show me my progress",
+    "what have we covered",
     "where am i at",
+    "where am i in the course",
     "lessons done",
     "lessons completed",
+    "completed lessons",
+    "my stats",
+    "my progress so far",
   ];
   return triggers.some((kw) => t.includes(kw));
 }
