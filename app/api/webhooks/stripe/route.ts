@@ -284,4 +284,19 @@ async function sendReactivationMessage(
   } catch (err) {
     console.error("[stripe webhook] memory_json buffer update failed:", err);
   }
+
+  // Follow-up: send the curriculum dashboard link so it lands in
+  // WhatsApp's auto-Links section for this contact. Best-effort —
+  // failure here doesn't undo the upgrade.
+  try {
+    const { curriculumUrl } = await import("@/lib/account/magic-link");
+    const { sendText } = await import("@/lib/messaging/whatsapp");
+    const link = await curriculumUrl(userId);
+    await sendText(
+      whatsappNumber,
+      `Tu agenda visual del curso 🌿\n\n${link}\n\nAsk for the *"course link"* anytime to get a fresh one.`,
+    );
+  } catch (err) {
+    console.error("[stripe webhook] curriculum link send failed:", err);
+  }
 }

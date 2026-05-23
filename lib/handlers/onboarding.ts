@@ -13,6 +13,7 @@ import { getOrCreateAudio } from "@/lib/messaging/audio-cache";
 import { patchMemory, getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { curriculumUrl } from "@/lib/account/magic-link";
 
 interface OnboardingArgs {
   userId: string;
@@ -315,6 +316,33 @@ async function processStep7(args: OnboardingArgs): Promise<void> {
       "Perfect 🌿 Ask me anything. How do you say something? What does a word mean? I'm here 😊",
     );
     await updateState(args.userId, { state: "active_free_chat" });
+  }
+
+  // Send the visual course-agenda link as a follow-up. The link gets
+  // pinned in WhatsApp's auto-Links section for this contact, so even
+  // after the magic-link TTL expires, the student can:
+  //   1. Always see this message in scrollback
+  //   2. Use the keyword Chia teaches them ("course link") to ask
+  //      for a fresh one
+  // Both branches (structured + free chat) get the same nudge.
+  await sendCurriculumLinkIntro(args.userId, args.whatsappNumber);
+}
+
+// Sends the visual curriculum link + a one-line note teaching the
+// student how to ask for a fresh one anytime. Best-effort — if the
+// short-link insert fails for any reason, onboarding still completes.
+async function sendCurriculumLinkIntro(
+  userId: string,
+  whatsappNumber: string,
+): Promise<void> {
+  try {
+    const link = await curriculumUrl(userId);
+    await sendText(
+      whatsappNumber,
+      `One more thing 🌿\n\nHere's your visual course agenda — check off lessons, see what's coming, jump back into any lesson with one tap:\n\n${link}\n\nSave this chat — anytime you want to see your progress, just ask me for the *"course link"* and I'll send you a fresh one.`,
+    );
+  } catch (err) {
+    console.error("[onboarding] sendCurriculumLinkIntro failed:", err);
   }
 }
 
