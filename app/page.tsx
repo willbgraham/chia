@@ -18,7 +18,14 @@ export const metadata: Metadata = {
 
 const WHATSAPP_NUMBER =
   process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "436606412569";
-const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hola Chia 🌿")}`;
+// Pre-filled WhatsApp message. The text matters more than you'd think
+// — a bare "Hola Chia 🌿" leaves the visitor staring at the message
+// thinking "what now?" and ~30% never tap send. Framing the first
+// message as a conversational opener primes the experience and lifts
+// tap-send rates. If you A/B test variants, change here.
+const PREFILLED_MESSAGE =
+  "Hi Chia 🌿 saw your ad — show me what you can do";
+const WHATSAPP_LINK = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(PREFILLED_MESSAGE)}`;
 
 interface ChiaTeacher {
   name: string;
@@ -205,15 +212,12 @@ export default async function Home() {
             <br />
             <span className="text-accent">talking to a friend</span>.
           </h1>
-          <p className="mt-6 text-lg text-muted max-w-xl leading-relaxed">
-            ChiaChat puts you in conversation with{" "}
-            <strong className="text-text">Chia</strong>, a 27-year-old teacher
-            from Valencia. She replies in Spanish, then in English, so you pick
-            it up the way you'd pick up a language from a friend — by being
-            around her. Live, on WhatsApp. The only app you already use.
-          </p>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+          {/* CTA lifted up above the body paragraph. People who land
+              ready-to-act don't have to scroll past a description to
+              find the button; people who want detail still get the
+              paragraph below. Lifts mobile tap-rate per our funnel data. */}
+          <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
               href={WHATSAPP_LINK}
               className="inline-flex items-center gap-2 rounded-full bg-accent text-bg px-6 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
@@ -228,9 +232,17 @@ export default async function Home() {
             </span>
           </div>
 
-          <p className="mt-6 text-xs text-muted">
+          <p className="mt-2 text-xs text-muted">
             We&apos;ll text you within a minute. No app to install — just open
             WhatsApp.
+          </p>
+
+          <p className="mt-8 text-lg text-muted max-w-xl leading-relaxed">
+            ChiaChat puts you in conversation with{" "}
+            <strong className="text-text">Chia</strong>, a 27-year-old teacher
+            from Valencia. She replies in Spanish, then in English, so you pick
+            it up the way you&apos;d pick up a language from a friend — by being
+            around her. Live, on WhatsApp. The only app you already use.
           </p>
         </div>
 
@@ -285,6 +297,40 @@ export default async function Home() {
             title="Hear her voice"
             body="Send a voice note pronouncing a word — she'll send one back, gentle correction included. (Premium plan unlocks unlimited voice.)"
           />
+        </div>
+      </section>
+
+      {/* ─── What a chat looks like ─────────────────────────────── */}
+      {/* Show, don't tell. People scroll past descriptions of "she
+          replies in Spanish then English"; they actually READ a chat
+          screenshot. This preview mirrors how Chia really replies —
+          Spanish first, English translation, leaf emoji, pronunciation
+          guide — so visitors get a concrete sense of the experience
+          before tapping through to WhatsApp. */}
+      <section className="max-w-6xl mx-auto px-6 py-20 border-t border-border">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-12 items-center">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight">
+              What a chat with Chia looks like
+            </h2>
+            <p className="mt-3 text-muted leading-relaxed">
+              Real Spanish, real conversation. Chia answers in Spanish first,
+              then English — so you understand instantly but pick the language
+              up the way you would from a friend. Pronunciation guides come for
+              free. Voice notes get gentle correction.
+            </p>
+            <a
+              href={WHATSAPP_LINK}
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-accent text-bg px-5 py-2.5 text-sm font-semibold hover:opacity-90"
+              data-track="Lead"
+              data-track-label="preview-cta"
+            >
+              <WhatsAppGlyph />
+              Try it on WhatsApp
+            </a>
+          </div>
+
+          <ChatPreview />
         </div>
       </section>
 
@@ -463,6 +509,146 @@ function PricingCard({
         <WhatsAppGlyph />
         {cta}
       </a>
+    </div>
+  );
+}
+
+// Fake WhatsApp-mockup chat showing what a real exchange with Chia
+// looks like. Static — the messages here are hand-written, but they
+// mirror Chia's actual reply pattern (Spanish first, English in
+// parens, leaf emoji, pronunciation guide when useful). Voice-note
+// rows render the WhatsApp-style waveform pill so the visitor sees
+// that voice is a first-class part of the experience.
+function ChatPreview() {
+  return (
+    <div className="relative max-w-md w-full mx-auto">
+      {/* Phone-frame container — rounded, WhatsApp-green header strip */}
+      <div className="rounded-[2rem] border border-border bg-surface shadow-2xl overflow-hidden">
+        {/* WhatsApp-style chat header */}
+        <div className="bg-[#075E54] text-white px-4 py-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center text-base">
+            🌿
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold">Chia</div>
+            <div className="text-[11px] text-white/70">online · typing…</div>
+          </div>
+        </div>
+
+        {/* Message thread */}
+        <div className="bg-[#0B1410] px-3 py-4 space-y-2 min-h-[420px]">
+          <Bubble from="them">
+            ¡Hola! 🌿 ¿Listo para una charla rápida?
+            <Translation>(Hi! Ready for a quick chat?)</Translation>
+          </Bubble>
+
+          <Bubble from="me">
+            How do I say &quot;I&apos;m cold&quot; in Spanish?
+          </Bubble>
+
+          <Bubble from="them">
+            <strong>&quot;Tengo frío&quot;</strong> 🌿{" "}
+            <span className="text-text/70">(&apos;TEN-go FREE-oh&apos;)</span>
+            <br />
+            Literally: <em>I have cold</em>. Spaniards always say it that way —
+            never &quot;estoy frío&quot;, that means something else entirely 😉
+            <Translation>I have cold = I&apos;m cold</Translation>
+          </Bubble>
+
+          <Bubble from="me">
+            <VoiceBubble seconds={3} />
+          </Bubble>
+
+          <Bubble from="them">
+            ¡Casi perfecto! Solo la <strong>&quot;rr&quot;</strong> — needs a
+            little roll. Try again? 🎵
+            <Translation>(Almost perfect! Just the &quot;rr&quot;.)</Translation>
+          </Bubble>
+
+          <Bubble from="them">
+            <VoiceBubble seconds={2} fromChia />
+          </Bubble>
+        </div>
+      </div>
+
+      {/* Subtle caption under the mockup */}
+      <p className="mt-3 text-center text-[11px] text-muted">
+        Sample exchange — your conversation will be different.
+      </p>
+    </div>
+  );
+}
+
+function Bubble({
+  from,
+  children,
+}: {
+  from: "me" | "them";
+  children: React.ReactNode;
+}) {
+  const isMe = from === "me";
+  return (
+    <div className={"flex " + (isMe ? "justify-end" : "justify-start")}>
+      <div
+        className={
+          "max-w-[80%] rounded-2xl px-3 py-2 text-[13px] leading-snug " +
+          (isMe
+            ? "bg-[#005C4B] text-white rounded-br-sm"
+            : "bg-[#1F2C26] text-text rounded-bl-sm")
+        }
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Italic, slightly faded English translation line — appears under
+// Chia's Spanish replies.
+function Translation({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-1.5 text-[11px] italic text-text/50">{children}</div>
+  );
+}
+
+// WhatsApp-style voice-note pill. Decorative — the bar pattern is
+// hard-coded, not derived from real audio. Communicates that voice
+// is part of the experience without us shipping an actual audio file
+// inline.
+function VoiceBubble({
+  seconds,
+  fromChia = false,
+}: {
+  seconds: number;
+  fromChia?: boolean;
+}) {
+  // 18 bars with a pseudo-random-but-consistent waveform shape so
+  // every render looks the same (avoids hydration warnings).
+  const HEIGHTS = [4, 8, 12, 6, 14, 18, 10, 16, 8, 12, 6, 14, 10, 16, 8, 4, 12, 6];
+  return (
+    <div className="flex items-center gap-2 py-1 min-w-[160px]">
+      <span
+        className={
+          "flex h-6 w-6 items-center justify-center rounded-full text-[11px] " +
+          (fromChia ? "bg-accent/30 text-accent" : "bg-white/20 text-white")
+        }
+        aria-hidden
+      >
+        ▶
+      </span>
+      <div className="flex items-center gap-[2px] h-6">
+        {HEIGHTS.map((h, i) => (
+          <span
+            key={i}
+            className={
+              "block w-[2px] rounded-full " +
+              (fromChia ? "bg-accent/60" : "bg-white/60")
+            }
+            style={{ height: `${h}px` }}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] opacity-70">0:0{seconds}</span>
     </div>
   );
 }

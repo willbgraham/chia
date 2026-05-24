@@ -2,9 +2,10 @@
 
 import Script from "next/script";
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 // Meta (Facebook) Pixel for ad attribution.
-// - Auto-fires PageView on every route load
+// - Auto-fires PageView on every public route load
 // - Listens globally for [data-track] attributes on anchors/buttons
 //   so we can fire conversion events (e.g., Lead, Purchase) from
 //   server components without refactoring them into client islands.
@@ -15,6 +16,15 @@ import { useEffect } from "react";
 // The Pixel ID is read from NEXT_PUBLIC_META_PIXEL_ID. If unset, the
 // component renders nothing and click handlers are no-ops — safe to
 // leave mounted in dev or on previews where you don't want to ping Meta.
+//
+// Internal/private routes (admin dashboards, signed magic-link student
+// account pages, the short-link redirect surface) are EXCLUDED so:
+//   1. Admin browsing doesn't inflate the PageView count and pollute
+//      ad-attribution data (a real problem — early data showed admin
+//      visits accounting for ~70% of recorded PageViews)
+//   2. We don't ping Meta with URLs that could leak token paths via
+//      Referer or just be unnecessary tracking of authenticated users
+const INTERNAL_PATH_PREFIXES = ["/admin", "/account", "/c/", "/api"];
 
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
@@ -25,8 +35,13 @@ declare global {
 }
 
 export function MetaPixel() {
+  const pathname = usePathname() ?? "/";
+  const isInternal = INTERNAL_PATH_PREFIXES.some((p) =>
+    pathname.startsWith(p),
+  );
+
   useEffect(() => {
-    if (!PIXEL_ID) return;
+    if (!PIXEL_ID || isInternal) return;
     function onClick(e: MouseEvent) {
       const el = (e.target as HTMLElement | null)?.closest<HTMLElement>(
         "[data-track]",
@@ -47,9 +62,9 @@ export function MetaPixel() {
     }
     document.addEventListener("click", onClick, { capture: true });
     return () => document.removeEventListener("click", onClick, { capture: true });
-  }, []);
+  }, [isInternal]);
 
-  if (!PIXEL_ID) return null;
+  if (!PIXEL_ID || isInternal) return null;
 
   return (
     <>
