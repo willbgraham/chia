@@ -55,16 +55,25 @@ const VOICE_INTRO_PHRASE =
 
 // Two messages go out: voice note + text. Meta doesn't guarantee
 // order between two separate API calls, so the copy is written to
-// read naturally regardless of which arrives first.
-const TEXT_AFTER_VOICE = `Hi, I'm Chia. Welcome to ChiaChat. Let's learn Spanish together 🌿
+// read naturally regardless of which arrives first. References the
+// voice note ("that's my actual voice") to make the immersion land,
+// shows the method in one line (answers the ad's "show me what you
+// can do"), and asks the name in a way that elicits just a name —
+// "what should I call you?" rather than "what's your name?" (which
+// invites "My name is Sarah" → broke name capture).
+const TEXT_AFTER_VOICE = `That's my actual voice up there 🌿 (if you played it!)
 
-I'm going to teach you — and I promise it'll feel nothing like school. What's your name?`;
+Here's how we do this: you just chat with me — about your day, food, travel, anything — and you pick up Spanish the way you would from a friend. No drills, no textbooks. I translate everything so you're never lost.
 
-// Sent only when the voice intro fails. Slightly different — opens
-// in Spanish so the student still gets a hint of immersion.
-const TEXT_FALLBACK_NO_VOICE = `¡Hola! Soy Chia 🌿
-I'm going to teach you Spanish — I promise it'll feel nothing like school.
-What's your name?`;
+Para empezar… ¿cómo te llamas? (What should I call you? 😊)`;
+
+// Sent only when the voice intro fails. Opens in Spanish so the
+// student still gets a hint of immersion.
+const TEXT_FALLBACK_NO_VOICE = `¡Hola! Soy Chia 🌿 — your Spanish friend from Valencia.
+
+Here's how this works: you just chat with me about anything, and you pick up Spanish the way you would from a friend. I translate everything, so you're never lost.
+
+Para empezar… ¿cómo te llamas? (What should I call you? 😊)`;
 
 // Small pause between sends. Meta's media (image/audio) takes time
 // to process before delivery to the recipient. Without these pauses,
@@ -154,11 +163,11 @@ async function sendGreetingPhoto(
 
 // ── Step 2: capture name → ask language ─────────────────────────────────────
 async function processStep2(args: OnboardingArgs): Promise<void> {
-  const name = args.userMessage.trim().split(/\s+/)[0]?.slice(0, 40);
+  const name = await extractName(args.userMessage);
   if (!name) {
     await sendText(
       args.whatsappNumber,
-      "I didn't catch that — what's your name? 🌿",
+      "I didn't quite catch your name 🌿 — just your first name is perfect 😊",
     );
     return;
   }
@@ -168,6 +177,71 @@ async function processStep2(args: OnboardingArgs): Promise<void> {
     `Nice to meet you ${name}! What language do you speak at home? I'll always translate for you in that language.\n\n1. English\n2. French\n3. German\n4. Italian\n5. Other`,
   );
   await updateState(args.userId, { state: "onboarding_step_3" });
+}
+
+// Pull a clean first name out of whatever the student typed. People
+// reply in wildly different ways — "Sarah", "My name is Sarah",
+// "I'm Jay", "me llamo María", "just call me Jay", or even a whole
+// sentence or a non-name like "How does this work?". The old code
+// took the literal first word, which stored garbage names like "My"
+// (from "My name is…") and "كيف" (Arabic for "how").
+//
+// GPT is the PRIMARY extractor because it's the only thing that can
+// tell "Sarah" (a name) from "How" (not a name) — a regex accepts
+// both as "a word of letters". Regex is only the fallback for when
+// the GPT call errors out, so onboarding never hard-blocks on an API
+// hiccup. One GPT-4o-mini call per new user — negligible cost/latency.
+async function extractName(raw: string): Promise<string | null> {
+  try {
+    const gptName = await extractNameGpt(raw);
+    if (gptName) return gptName;
+    // GPT explicitly decided there's no name in the message
+    // (e.g. "how does this work?") → signal the caller to re-ask.
+    return null;
+  } catch (err) {
+    // GPT unreachable — degrade to regex so onboarding still works.
+    console.error("[onboarding] GPT name extraction failed, using regex:", err);
+    return extractNameRegex(raw);
+  }
+}
+
+function extractNameRegex(raw: string): string | null {
+  let s = raw.trim();
+  if (!s) return null;
+  // Strip common conversational lead-ins (English + Spanish).
+  s = s.replace(
+    /^(my name is|my name'?s|i'?m|i am|call me|you can call me|just call me|it'?s|this is|name'?s|hi,?\s*i'?m|hey,?\s*i'?m|hola,?\s*soy|me llamo|mi nombre es|soy|yo soy)\s+/i,
+    "",
+  );
+  // First remaining token, keep only letters/apostrophes/hyphens
+  // (covers accented + non-Latin scripts via \p{L}).
+  const first = s.split(/\s+/)[0]?.replace(/[^\p{L}'-]/gu, "") ?? "";
+  if (first.length < 2 || first.length > 20) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1);
+}
+
+async function extractNameGpt(raw: string): Promise<string | null> {
+  const { chatCompletion } = await import("@/lib/messaging/openai");
+  const system =
+    `Extract the person's first name from their message. They were asked "what should I call you?". ` +
+    `Return JSON: {"name": "<FirstName>"} with just their name, properly capitalized. ` +
+    `If the message contains no actual name (e.g. it's a greeting, a question, or random words), return {"name": null}.`;
+  const out = await chatCompletion(
+    [
+      { role: "system", content: system },
+      { role: "user", content: raw.slice(0, 200) },
+    ],
+    {
+      model: "gpt-4o-mini",
+      temperature: 0,
+      max_tokens: 20,
+      response_format: { type: "json_object" },
+    },
+  );
+  const parsed = JSON.parse(out) as { name?: string | null };
+  const name = parsed.name?.trim();
+  if (!name || name.length < 2 || name.length > 20) return null;
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 // ── Step 3: native language → ask level ─────────────────────────────────────
