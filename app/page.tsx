@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 const WHATSAPP_NUMBER =
-  process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "436606412569";
+  process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "34600974942";
 // Pre-filled WhatsApp message. The text matters more than you'd think
 // — a bare "Hola Chia 🌿" leaves the visitor staring at the message
 // thinking "what now?" and ~30% never tap send. Framing the first
@@ -61,7 +61,7 @@ function buildStructuredData(): string {
   const site =
     process.env.NEXT_PUBLIC_APP_URL ?? "https://chiachat.com";
   const wa =
-    process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "436606412569";
+    process.env.NEXT_PUBLIC_CHIA_WHATSAPP_NUMBER ?? "34600974942";
 
   const schemas = [
     {
