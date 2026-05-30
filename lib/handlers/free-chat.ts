@@ -22,6 +22,7 @@ import {
   formatProgressForChat,
 } from "@/lib/handlers/curriculum";
 import { sendQuiz } from "@/lib/handlers/quiz";
+import { detectSafetyIssue, respondToSafetyIssue } from "@/lib/handlers/safety";
 
 interface FreeChatArgs {
   userId: string;
@@ -36,12 +37,29 @@ interface FreeChatArgs {
 }
 
 export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
+  // Safety pattern check — runs BEFORE any other intent so a serious
+  // disclosure (self-harm, abuse, workplace abuse) never reaches the
+  // GPT free-chat model, where it could improvise something well-
+  // meaning but wrong. The handler sends a hard-coded resource-rich
+  // response and we exit early.
+  const safetyMatch = detectSafetyIssue(args.userMessage);
+  if (safetyMatch) {
+    await respondToSafetyIssue({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      userMessage: args.userMessage,
+      match: safetyMatch,
+    });
+    return;
+  }
+
   // Lesson advancement intent — fast path. If the student says
   // "next lesson" / "teach me" / etc., skip the GPT chat reply
   // entirely and route them straight into the structured lesson
   // flow. Far better UX than Chia chatting about it then the lesson
   // arriving as a separate message.
   if (wantsNextLesson(args.userMessage)) {
+    await resetFreeChatStreak(args.userId);
     await startOrAdvanceLesson(args);
     return;
   }
@@ -49,12 +67,14 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // Curriculum overview intents: "what are we learning" / "show me
   // the curriculum" / "what's left" → curriculum list.
   if (wantsCurriculumOverview(args.userMessage)) {
+    await resetFreeChatStreak(args.userId);
     await sendCurriculumOverview(args);
     return;
   }
   // "What have I learned" / "my progress" / "how am I doing" →
   // progress summary.
   if (wantsProgressSummary(args.userMessage)) {
+    await resetFreeChatStreak(args.userId);
     await sendProgressSummary(args);
     return;
   }
@@ -62,6 +82,7 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // current lesson without advancing (vs. wantsNextLesson which
   // advances past it).
   if (wantsResumeLesson(args.userMessage)) {
+    await resetFreeChatStreak(args.userId);
     await resumeCurrentLesson(args);
     return;
   }
@@ -71,6 +92,7 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // from startOrAdvanceLesson; this is the "let me try it again" entry.
   const moduleQuizIntent = matchModuleQuizIntent(args.userMessage);
   if (moduleQuizIntent !== null) {
+    await resetFreeChatStreak(args.userId);
     await launchManualModuleQuiz({
       userId: args.userId,
       whatsappNumber: args.whatsappNumber,
@@ -86,6 +108,7 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // lesson item. Answer flows through the awaiting_quiz_answer
   // state machine.
   if (wantsQuiz(args.userMessage)) {
+    await resetFreeChatStreak(args.userId);
     await sendQuiz({
       userId: args.userId,
       whatsappNumber: args.whatsappNumber,
@@ -138,6 +161,16 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   await appendMessage(args.userId, "assistant", reply);
   await logMessage({ userId: args.userId, role: "user", content: args.userMessage });
   await logMessage({ userId: args.userId, role: "assistant", content: reply });
+
+  // Lesson nudge — increment the free-chat streak and send a soft
+  // "want a quick lesson?" suggestion at milestones (every 8 turns).
+  // Without this, users like Alex stay in pure free chat forever and
+  // never engage with the actual learning product. The streak is
+  // reset by all the structured-action branches above.
+  const newStreak = await bumpFreeChatStreak(args.userId);
+  if (shouldNudgeAt(newStreak)) {
+    await sendLessonNudge(args.whatsappNumber, args.userId, newStreak);
+  }
 
   // Detect upgrade intent — if the student is on free and asks to
   // upgrade, send them the Stripe payment link as a follow-up message.
@@ -838,4 +871,64 @@ async function appendMessage(
   const next = { ...memory, _recent: buf.slice(-20) };
   const sb = getAdminClient();
   await sb.from("users").update({ memory_json: next }).eq("id", userId);
+}
+
+// ── Lesson-nudge helpers ─────────────────────────────────────────────
+// Tracks how many consecutive free-chat turns a student has taken
+// without engaging any structured action (next lesson, quiz, etc.).
+// When the streak hits a milestone, append a soft nudge so users
+// don't disappear into pure companion mode (the Alex pattern: 50
+// messages, zero learning, never typed "next lesson").
+
+async function bumpFreeChatStreak(userId: string): Promise<number> {
+  const memory = await getMemory(userId);
+  const current =
+    typeof (memory as { free_chat_streak?: number }).free_chat_streak ===
+    "number"
+      ? (memory as { free_chat_streak?: number }).free_chat_streak ?? 0
+      : 0;
+  const next = current + 1;
+  await patchMemory(userId, { free_chat_streak: next });
+  return next;
+}
+
+async function resetFreeChatStreak(userId: string): Promise<void> {
+  await patchMemory(userId, { free_chat_streak: 0 });
+}
+
+// Nudge cadence: first nudge at 8 turns (about 4 back-and-forths
+// after the user has settled in), then every 16 turns after that.
+// Less than 8 = too early, more than 16 between = they drift; this
+// gives roughly every 8-15 minutes of chatting depending on pace.
+function shouldNudgeAt(streak: number): boolean {
+  if (streak < 8) return false;
+  if (streak === 8) return true;
+  return streak % 16 === 8; // 8, 24, 40, 56...
+}
+
+// Lesson nudge copy. Gentle and brief — it's a tag-on to Chia's
+// real reply, not a standalone interruption. Tiny variations by
+// streak depth so a long-time user doesn't see the exact same
+// nudge over and over.
+async function sendLessonNudge(
+  whatsappNumber: string,
+  userId: string,
+  streak: number,
+): Promise<void> {
+  const memory = await getMemory(userId);
+  const name = memory.name ?? null;
+  let copy: string;
+  if (streak === 8) {
+    copy = `psst 🌿 want to mix in a quick lesson? Just say *next lesson* — it's how we actually progress.`;
+  } else if (streak < 40) {
+    copy = `(psst ${name ?? ""}🌿 we've been chatting a while — want to do a quick lesson? Say *next lesson* and we'll cover something real in 2 min.)`;
+  } else {
+    copy = `oye ${name ?? ""}🌿 we're getting good at chatting — let's actually learn some Spanish! Say *next lesson* whenever you want.`;
+  }
+  await sendText(whatsappNumber, copy);
+  await logMessage({
+    userId,
+    role: "assistant",
+    content: `[lesson-nudge streak=${streak}] ${copy}`,
+  });
 }

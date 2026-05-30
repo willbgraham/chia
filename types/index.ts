@@ -87,6 +87,17 @@ export interface MemoryJson {
   // completion, quit, or 24h staleness sweep.
   pending_lesson_practice?: unknown;
   pending_lesson_quiz?: unknown;
+  // Safety cooldowns. Map of category → last-response ISO timestamp.
+  // See lib/handlers/safety.ts. Prevents spamming the same helpline
+  // numbers on every turn during a sensitive conversation.
+  safety_state?: Record<string, string>;
+  // Lesson-nudge counter — increments on every free-chat turn the
+  // student takes without triggering a structured action (next
+  // lesson, quiz, curriculum, etc.). Reset to 0 when any structured
+  // action fires. Triggers a soft "want a lesson?" nudge at
+  // milestones to keep users like Alex (50 messages of pure free
+  // chat, zero learning) from drifting into companion mode.
+  free_chat_streak?: number;
 }
 
 // ── Lesson content JSON ────────────────────────────────────────────────────
