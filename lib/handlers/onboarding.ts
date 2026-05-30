@@ -14,6 +14,21 @@ import { patchMemory, getMemory } from "@/lib/handlers/memory";
 import { updateState } from "@/lib/handlers/state";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { curriculumUrl } from "@/lib/account/magic-link";
+import { logMessage } from "@/lib/handlers/messages";
+
+// Logger wrapper that mirrors a Chia outbound to the messages table,
+// so admin viewers (and future analytics) can see what an onboarding
+// looks like to a real user. The base onboarding handler was sending
+// via sendText() only — leaving 8 of 10 recent signups as black boxes
+// in the messages table. This thin wrapper plugs the hole.
+async function sendAndLog(
+  userId: string,
+  whatsappNumber: string,
+  text: string,
+): Promise<void> {
+  await sendText(whatsappNumber, text);
+  await logMessage({ userId, role: "assistant", content: text });
+}
 
 interface OnboardingArgs {
   userId: string;
@@ -23,21 +38,38 @@ interface OnboardingArgs {
 }
 
 export async function handleOnboarding(args: OnboardingArgs): Promise<void> {
+  // Log every inbound user message to the messages table — including
+  // the first send from a brand-new user (the ad pre-fill, e.g. "Hi
+  // Chia 🌿 I want to learn Spanish"). Without this, 8 of 10 recent
+  // signups were opaque in the admin viewer.
+  if (args.userMessage) {
+    await logMessage({
+      userId: args.userId,
+      role: "user",
+      content: args.userMessage,
+    });
+  }
   switch (args.step) {
     case "onboarding_step_1":
       return await sendStep1(args);
     case "onboarding_step_2":
       return await processStep2(args);
     case "onboarding_step_3":
-      return await processStep3(args);
     case "onboarding_step_4":
-      return await processStep4(args);
+      // Steps 3 and 4 collapsed into one: skip the language ask
+      // (we assume English for ad traffic) and go straight to level.
+      // Users currently in step_3 (asking language) get the new
+      // level prompt on their next reply — minor in-flight blip
+      // but no data loss.
+      return await processLevelStep(args);
     case "onboarding_step_5":
-      return await processStep5(args);
     case "onboarding_step_6":
-      return await processStep6(args);
     case "onboarding_step_7":
-      return await processStep7(args);
+      // Legacy steps from the old 7-step flow. New onboarding skips
+      // them entirely — but in-flight users at these states should
+      // get gracefully shunted into active free chat rather than
+      // being stuck. Set defaults and close out.
+      return await finishOnboarding(args);
     default:
       // Unknown onboarding state — reset to step 1.
       await sendStep1(args);
@@ -114,10 +146,13 @@ async function sendStep1(args: OnboardingArgs): Promise<void> {
 
   // 3. Text — welcome + first question. This is the message the
   // student needs to respond to, so it must be the LAST one delivered.
-  await sendText(
-    args.whatsappNumber,
-    voiceSent ? TEXT_AFTER_VOICE : TEXT_FALLBACK_NO_VOICE,
-  );
+  const welcome = voiceSent ? TEXT_AFTER_VOICE : TEXT_FALLBACK_NO_VOICE;
+  await sendText(args.whatsappNumber, welcome);
+  await logMessage({
+    userId: args.userId,
+    role: "assistant",
+    content: welcome,
+  });
   await updateState(args.userId, { state: "onboarding_step_2" });
 }
 
@@ -161,22 +196,93 @@ async function sendGreetingPhoto(
   }
 }
 
-// ── Step 2: capture name → ask language ─────────────────────────────────────
+// ── Step 2: capture name → ask level (was: ask language) ────────────────────
+// Shortened onboarding: skip the language ask (we assume English for
+// the dominant ad-driven traffic), set the native_language default,
+// and jump straight to the level question. This collapses what was a
+// 7-step form into a 3-touch flow (welcome → name → level → go).
 async function processStep2(args: OnboardingArgs): Promise<void> {
   const name = await extractName(args.userMessage);
   if (!name) {
-    await sendText(
+    await sendAndLog(
+      args.userId,
       args.whatsappNumber,
       "I didn't quite catch your name 🌿 — just your first name is perfect 😊",
     );
     return;
   }
-  await patchMemory(args.userId, { name });
-  await sendText(
+  // Stamp the name + lock in defaults so we don't have to ask. Users
+  // can still tweak these later via /account/<token>.
+  await patchMemory(args.userId, {
+    name,
+    native_language: "English",
+  });
+  await sendAndLog(
+    args.userId,
     args.whatsappNumber,
-    `Nice to meet you ${name}! What language do you speak at home? I'll always translate for you in that language.\n\n1. English\n2. French\n3. German\n4. Italian\n5. Other`,
+    `Nice to meet you ${name}! 🌿\n\nHow's your Spanish right now? Be honest — I won't judge 😄\n\n1. Complete beginner\n2. I know a little\n3. Intermediate\n4. Advanced`,
   );
-  await updateState(args.userId, { state: "onboarding_step_3" });
+  // Jump to step 4 (level parser). Step 3 (language) is skipped.
+  await updateState(args.userId, { state: "onboarding_step_4" });
+}
+
+// ── Step 4 (level): capture level → finish onboarding ───────────────────────
+// Was processStep4 in the old flow. Renamed for clarity since it's
+// now the only intermediate step between name capture and going live.
+async function processLevelStep(args: OnboardingArgs): Promise<void> {
+  const level = parseLevel(args.userMessage);
+  if (!level) {
+    await sendAndLog(
+      args.userId,
+      args.whatsappNumber,
+      "Pick 1–4 for your level 😊",
+    );
+    return;
+  }
+  const memory = await getMemory(args.userId);
+  await patchMemory(args.userId, {
+    level,
+    // Lesson-mode + reminder defaults so we don't need to ask. The
+    // student can still trigger a structured lesson with "next lesson"
+    // and tweak reminders via /account/<token>.
+    lesson_mode: "both",
+    reminder_preference: "none",
+    curriculum_position: {
+      ...(memory.curriculum_position ?? {}),
+      current_topic: "greetings",
+      current_lesson: 1,
+    },
+  });
+  await finishOnboarding(args);
+}
+
+// Closes out onboarding. Sends a warm "you're set" message that
+// teaches the two essential commands (`next lesson` for structured,
+// chat freely otherwise), flips state to active_free_chat, and
+// follows up with the visual curriculum link so it lands in the
+// student's WhatsApp Links section.
+async function finishOnboarding(args: OnboardingArgs): Promise<void> {
+  const memory = await getMemory(args.userId);
+  // Fill defaults for any in-flight legacy users who never picked.
+  const patches: Record<string, unknown> = {};
+  if (!memory.native_language) patches.native_language = "English";
+  if (!memory.lesson_mode) patches.lesson_mode = "both";
+  if (!memory.reminder_preference) patches.reminder_preference = "none";
+  if (Object.keys(patches).length > 0) {
+    await patchMemory(args.userId, patches);
+  }
+
+  const name = memory.name ?? "amig@";
+  await sendAndLog(
+    args.userId,
+    args.whatsappNumber,
+    `¡Perfecto, ${name}! 🌿 We're set up.\n\nTry it: say *next lesson* to start the curriculum, or just chat with me about anything — your day, food, travel, what you want to learn first. ¡Vamos!`,
+  );
+  await updateState(args.userId, { state: "active_free_chat" });
+
+  // Follow-up: send the curriculum link so it lands in the WhatsApp
+  // auto-Links section for this contact. Best-effort.
+  await sendCurriculumLinkIntro(args.userId, args.whatsappNumber);
 }
 
 // Pull a clean first name out of whatever the student typed. People

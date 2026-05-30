@@ -170,6 +170,40 @@ export default async function DashboardPage() {
           />
         </div>
 
+        {/* Trial-specific row */}
+        <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatsCard
+            label="Trials active now"
+            value={formatNumber(funnel.trial.active)}
+            hint="trial_ends_at > now"
+          />
+          <StatsCard
+            label="Trials started ever"
+            value={formatNumber(funnel.trial.total_started)}
+            hint="had trial_offered_at set"
+          />
+          <StatsCard
+            label="Trial expired, no upgrade"
+            value={formatNumber(funnel.trial.expired_no_conversion)}
+            hint="trial ended, still on free"
+          />
+          <StatsCard
+            label="Trial → paid conversion"
+            value={
+              funnel.trial.total_started > 0
+                ? `${Math.round(
+                    ((funnel.trial.total_started -
+                      funnel.trial.expired_no_conversion -
+                      funnel.trial.active) /
+                      funnel.trial.total_started) *
+                      100,
+                  )}%`
+                : "—"
+            }
+            hint="(started − expired − active) / started"
+          />
+        </div>
+
         {/* Stuck-in-onboarding watch list */}
         {funnel.stuck_users.length > 0 ? (
           <div className="mt-6 rounded-2xl border border-border bg-surface overflow-hidden">

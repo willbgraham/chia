@@ -23,6 +23,8 @@ import {
 } from "@/lib/handlers/curriculum";
 import { sendQuiz } from "@/lib/handlers/quiz";
 import { detectSafetyIssue, respondToSafetyIssue } from "@/lib/handlers/safety";
+import { TRIAL_LENGTH_DAYS } from "@/lib/handlers/plan";
+import type { MemoryJson } from "@/types";
 
 interface FreeChatArgs {
   userId: string;
@@ -52,6 +54,12 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
     });
     return;
   }
+
+  // Trial acceptance — if the student has been offered a trial in a
+  // recent turn AND their reply is a clear "yes", unlock 7 days of
+  // Premium and skip the normal GPT response. The acceptor below
+  // returns true if it handled the turn, in which case we exit early.
+  if (await maybeAcceptTrial(args)) return;
 
   // Lesson advancement intent — fast path. If the student says
   // "next lesson" / "teach me" / etc., skip the GPT chat reply
@@ -170,6 +178,20 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   const newStreak = await bumpFreeChatStreak(args.userId);
   if (shouldNudgeAt(newStreak)) {
     await sendLessonNudge(args.whatsappNumber, args.userId, newStreak);
+  }
+
+  // Trial offer — once per user, after they've shown engagement (≥ 6
+  // free-chat turns). Free users get a "want to hear my actual voice?
+  // I'll unlock Premium for 7 days, on me" follow-up. Loss-aversion
+  // converts way better than "do you want to pay €25 for stuff you've
+  // never tried" — students who say yes and then see their first voice
+  // note in 30 seconds are far more likely to convert at trial end.
+  if (
+    args.userPlan === "free" &&
+    newStreak >= 6 &&
+    (await canOfferTrial(args.userId))
+  ) {
+    await offerTrial(args.userId, args.whatsappNumber);
   }
 
   // Detect upgrade intent — if the student is on free and asks to
@@ -904,6 +926,95 @@ function shouldNudgeAt(streak: number): boolean {
   if (streak < 8) return false;
   if (streak === 8) return true;
   return streak % 16 === 8; // 8, 24, 40, 56...
+}
+
+// ── Trial offer + accept ─────────────────────────────────────────────
+// Three pieces:
+//   - canOfferTrial: gate so we only offer once per user
+//   - offerTrial: Chia's "want me to unlock Premium for 7 days?" pitch
+//   - maybeAcceptTrial: detect "yes please" replies and flip the row
+// The conversion side (expiry + payment-link message) lives in the
+// cron at /api/cron/trial-expiry.
+
+const TRIAL_ACCEPT_RE =
+  /\b(yes(,? please)?|yes(,? pls)?|yeah|yep|yup|sure|sí|si,? por favor|i'?ll? take it|please do|do it|sounds good|absolutely|unlock( it)?)\b/i;
+
+async function canOfferTrial(userId: string): Promise<boolean> {
+  const memory = await getMemory(userId);
+  const m = memory as { trial_offered_at?: string };
+  if (m.trial_offered_at) return false;
+  // Check the user row too — don't offer a trial to anyone who's
+  // already paid or who somehow already has trial_ends_at set.
+  const sb = getAdminClient();
+  const { data } = await sb
+    .from("users")
+    .select("plan, trial_ends_at")
+    .eq("id", userId)
+    .single();
+  if (!data) return false;
+  if (data.plan === "premium") return false;
+  if (data.trial_ends_at && new Date(data.trial_ends_at) > new Date()) {
+    return false;
+  }
+  return true;
+}
+
+async function offerTrial(
+  userId: string,
+  whatsappNumber: string,
+): Promise<void> {
+  const memory = await getMemory(userId);
+  const name = memory.name ?? "amig@";
+  const msg = `Hey ${name} 🌿 I've been having fun chatting with you — want to hear my actual voice?\n\nI can unlock *Premium for ${TRIAL_LENGTH_DAYS} days*, on me — voice notes, photos, pronunciation feedback. No card needed.\n\nJust say *yes please* and it's on.`;
+  await sendText(whatsappNumber, msg);
+  await patchMemory(userId, {
+    trial_offered_at: new Date().toISOString(),
+  } as Partial<MemoryJson>);
+  await logMessage({ userId, role: "assistant", content: `[trial-offer] ${msg}` });
+}
+
+// Returns true if we handled the message as a trial acceptance and
+// the caller should skip the normal GPT free-chat turn.
+async function maybeAcceptTrial(args: FreeChatArgs): Promise<boolean> {
+  const memory = await getMemory(args.userId);
+  const m = memory as { trial_offered_at?: string };
+  if (!m.trial_offered_at) return false;
+  if (!TRIAL_ACCEPT_RE.test(args.userMessage)) return false;
+
+  // Confirm DB-side eligibility one more time (race / re-offer guards).
+  const sb = getAdminClient();
+  const { data: user } = await sb
+    .from("users")
+    .select("plan, trial_ends_at")
+    .eq("id", args.userId)
+    .single();
+  if (!user || user.plan === "premium") return false;
+  if (user.trial_ends_at && new Date(user.trial_ends_at) > new Date()) {
+    return false;
+  }
+
+  const trialEnds = new Date(
+    Date.now() + TRIAL_LENGTH_DAYS * 24 * 60 * 60 * 1000,
+  );
+  await sb
+    .from("users")
+    .update({ trial_ends_at: trialEnds.toISOString() })
+    .eq("id", args.userId);
+
+  const name = memory.name ?? "amig@";
+  const reply = `¡Hecho, ${name}! 🎉🌿 Premium unlocked for the next ${TRIAL_LENGTH_DAYS} days.\n\nTry sending me a voice note in Spanish — I'll send one back and give you pronunciation feedback. ¡Vamos!`;
+  await sendText(args.whatsappNumber, reply);
+  await logMessage({
+    userId: args.userId,
+    role: "user",
+    content: args.userMessage,
+  });
+  await logMessage({
+    userId: args.userId,
+    role: "assistant",
+    content: `[trial-activated] ${reply}`,
+  });
+  return true;
 }
 
 // Lesson nudge copy. Gentle and brief — it's a tag-on to Chia's

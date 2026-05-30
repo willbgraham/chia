@@ -5,6 +5,7 @@
 
 import { getAdminClient } from "@/lib/supabase/admin";
 import { AUDIO_LIMITS, type AudioSource, type AudioDirection, type Plan } from "@/types";
+import { TRIAL_AUDIO_CAP_CHARS } from "@/lib/handlers/plan";
 
 interface UsageInsert {
   user_id: string;
@@ -39,13 +40,22 @@ export async function charactersUsedThisPeriod(
   );
 }
 
+// Quota check. `plan` here is the EFFECTIVE plan from
+// getEffectivePlan (paid OR trial); `isTrialUser` distinguishes the
+// two cases so trial users get a small audio cap (TRIAL_AUDIO_CAP_CHARS)
+// while paid users get the full premium quota (AUDIO_LIMITS.premium).
+// This prevents a bad-actor trial from torching $30 of ElevenLabs on
+// one user while still letting them taste the experience.
 export async function isWithinLimit(
   userId: string,
   plan: Plan,
   billingPeriodStart: string | null,
   additional = 0,
+  isTrialUser = false,
 ): Promise<{ ok: boolean; used: number; limit: number; remaining: number }> {
-  const limit = AUDIO_LIMITS[plan];
+  const baseLimit = AUDIO_LIMITS[plan];
+  const limit =
+    isTrialUser && plan === "premium" ? TRIAL_AUDIO_CAP_CHARS : baseLimit;
   const used = await charactersUsedThisPeriod(userId, billingPeriodStart);
   const remaining = Math.max(0, limit - used);
   return {

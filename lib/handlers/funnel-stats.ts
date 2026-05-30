@@ -34,6 +34,15 @@ export interface FunnelStats {
     // premium / total — 0..1
     premium_conversion: number;
   };
+  trial: {
+    // Active right now (trial_ends_at > now() AND plan='free').
+    active: number;
+    // Total trials ever started.
+    total_started: number;
+    // Total trials that ended without converting (expired and the
+    // user stayed on free).
+    expired_no_conversion: number;
+  };
   messages: {
     total: number;
     last_7d: number;
@@ -125,6 +134,26 @@ export async function fetchFunnelStats(): Promise<FunnelStats> {
       .limit(10),
   ]);
 
+  // Trial-specific counts. trial_offered_at lives in memory_json and
+  // isn't worth a top-level column query, so for "total_started" we
+  // count distinct users whose memory_json has trial_offered_at — a
+  // simple proxy that catches both currently-active and already-expired
+  // trials. expired_no_conversion = users with offered + still-free +
+  // no active trial right now.
+  const nowIso = new Date().toISOString();
+  const [trialActiveQ, trialOfferedQ] = await Promise.all([
+    sb
+      .from("users")
+      .select("id", { count: "exact", head: true })
+      .gt("trial_ends_at", nowIso),
+    // Memory-json filter requires the textual JSON path operator. We
+    // pull and count in app code so the query stays portable.
+    sb
+      .from("users")
+      .select("id, memory_json, plan, trial_ends_at")
+      .not("memory_json->trial_offered_at", "is", null),
+  ]);
+
   const total = totalSignups.count ?? 0;
   const premium = premiumCount.count ?? 0;
   const totalMsgs = messagesTotal.count ?? 0;
@@ -170,6 +199,22 @@ export async function fetchFunnelStats(): Promise<FunnelStats> {
       premium,
       premium_conversion: total > 0 ? premium / total : 0,
     },
+    trial: (() => {
+      const totalStarted = trialOfferedQ.data?.length ?? 0;
+      const active = trialActiveQ.count ?? 0;
+      // Expired-and-not-converted = offered, currently free, and
+      // trial_ends_at is either null or in the past.
+      const expiredNoConv = (trialOfferedQ.data ?? []).filter((u) => {
+        if (u.plan === "premium") return false;
+        if (!u.trial_ends_at) return true;
+        return new Date(u.trial_ends_at) < new Date();
+      }).length;
+      return {
+        active,
+        total_started: totalStarted,
+        expired_no_conversion: expiredNoConv,
+      };
+    })(),
     messages: {
       total: totalMsgs,
       last_7d: messages7d.count ?? 0,

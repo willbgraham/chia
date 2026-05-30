@@ -91,6 +91,14 @@ export interface MemoryJson {
   // See lib/handlers/safety.ts. Prevents spamming the same helpline
   // numbers on every turn during a sensitive conversation.
   safety_state?: Record<string, string>;
+  // ISO timestamp of when we offered the 7-day Premium trial. Used
+  // to gate the offer so each user sees it at most once (and to
+  // detect "yes please" replies that arrive in the next few turns).
+  trial_offered_at?: string;
+  // Set once when the onboarding re-engagement cron sends a nudge
+  // to a student who stalled mid-onboarding. Prevents the cron from
+  // spamming the same silent user every day.
+  onboarding_nudge_sent_at?: string;
   // Lesson-nudge counter — increments on every free-chat turn the
   // student takes without triggering a structured action (next
   // lesson, quiz, curriculum, etc.). Reset to 0 when any structured
@@ -155,6 +163,9 @@ export interface User {
   reminder_time: string | null;
   billing_period_start: string | null;
   stripe_customer_id: string | null;
+  // 7-day Premium gift trial. Non-null while active; nulled by the
+  // expiry cron when the window closes. See lib/handlers/plan.ts.
+  trial_ends_at: string | null;
   created_at: string;
   updated_at: string;
 }
