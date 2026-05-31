@@ -37,6 +37,7 @@ export type ConversationStateName =
   | "awaiting_module_quiz"
   | "awaiting_lesson_practice"
   | "awaiting_lesson_quiz"
+  | "awaiting_delete_confirm"
   | "idle";
 
 // ── Memory JSON ────────────────────────────────────────────────────────────

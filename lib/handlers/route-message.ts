@@ -25,6 +25,7 @@ import {
   handleQuitIntent as handleLessonQuitIntent,
   clearStaleLessonState,
 } from "@/lib/handlers/lesson-quiz";
+import { handleDeleteConfirm } from "@/lib/handlers/account-delete";
 import {
   getOrCreateState,
   touchLastMessage,
@@ -349,6 +350,19 @@ export async function handleInbound(msg: InboundMessage): Promise<void> {
         userPlan: user.plan,
         userMessage: msg.textBody,
         billingPeriodStart: user.billing_period_start,
+      });
+      return;
+
+    case "awaiting_delete_confirm":
+      // Final yes/no on a GDPR-style account deletion. The handler
+      // parses the reply and either wipes the user (Stripe + DB) or
+      // reverts to active_free_chat. Anything ambiguous gets a
+      // re-prompt without timing out, so we never accidentally
+      // delete on noise.
+      await handleDeleteConfirm({
+        userId: user.id,
+        whatsappNumber: msg.whatsappNumber,
+        userMessage: msg.textBody,
       });
       return;
 

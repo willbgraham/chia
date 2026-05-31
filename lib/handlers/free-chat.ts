@@ -24,6 +24,10 @@ import {
 import { sendQuiz } from "@/lib/handlers/quiz";
 import { detectSafetyIssue, respondToSafetyIssue } from "@/lib/handlers/safety";
 import { TRIAL_LENGTH_DAYS } from "@/lib/handlers/plan";
+import {
+  wantsDeleteAccount,
+  startAccountDeletion,
+} from "@/lib/handlers/account-delete";
 import type { MemoryJson } from "@/types";
 
 interface FreeChatArgs {
@@ -60,6 +64,19 @@ export async function handleFreeChat(args: FreeChatArgs): Promise<void> {
   // Premium and skip the normal GPT response. The acceptor below
   // returns true if it handled the turn, in which case we exit early.
   if (await maybeAcceptTrial(args)) return;
+
+  // Account deletion request — GDPR "right to be forgotten" path.
+  // Works for free + premium. We send a confirmation prompt and
+  // transition state to awaiting_delete_confirm; route-message
+  // catches that state on the next inbound to actually wipe.
+  if (wantsDeleteAccount(args.userMessage)) {
+    await startAccountDeletion({
+      userId: args.userId,
+      whatsappNumber: args.whatsappNumber,
+      userPlan: args.userPlan,
+    });
+    return;
+  }
 
   // Lesson advancement intent — fast path. If the student says
   // "next lesson" / "teach me" / etc., skip the GPT chat reply
