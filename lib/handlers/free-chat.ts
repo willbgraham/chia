@@ -941,8 +941,23 @@ const TRIAL_ACCEPT_RE =
 
 async function canOfferTrial(userId: string): Promise<boolean> {
   const memory = await getMemory(userId);
-  const m = memory as { trial_offered_at?: string };
+  const m = memory as {
+    trial_offered_at?: string;
+    safety_state?: Record<string, string>;
+  };
   if (m.trial_offered_at) return false;
+
+  // Suppress trial offer if the user triggered the inappropriate-
+  // content safety in the last 48h. We don't want to dangle "want
+  // me to unlock Premium for 7 days?" at someone who's been asking
+  // for nudes — that was a real brand-existential bug in the logs
+  // (Pilij got the trial offer right after asking for naked photos).
+  const ts = m.safety_state?.inappropriate_content;
+  if (ts) {
+    const elapsedMs = Date.now() - new Date(ts).getTime();
+    if (elapsedMs < 48 * 60 * 60 * 1000) return false;
+  }
+
   // Check the user row too — don't offer a trial to anyone who's
   // already paid or who somehow already has trial_ends_at set.
   const sb = getAdminClient();

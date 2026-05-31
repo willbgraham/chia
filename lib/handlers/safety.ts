@@ -26,7 +26,8 @@ import type { MemoryJson } from "@/types";
 export type SafetyCategory =
   | "self_harm"
   | "abuse_disclosure"
-  | "workplace_abuse";
+  | "workplace_abuse"
+  | "inappropriate_content";
 
 interface SafetyMatch {
   category: SafetyCategory;
@@ -58,6 +59,21 @@ const PATTERNS: Array<{ category: SafetyCategory; re: RegExp; name: string }> = 
     category: "abuse_disclosure",
     re: /\b(i was (abused|raped|assaulted|attacked|hit|beaten)|he (hits|beats|hit|beat|raped|assaulted) me|she (hits|beats|hit|beat|raped|assaulted) me|domestic (abuse|violence)|sexual assault|i'?m in danger|i feel unsafe at home)\b/i,
     name: "abuse_disclosure",
+  },
+  // Inappropriate / sexual content from the user. Triggered by the
+  // real Pilij/957c2bff/Alex pattern of treating Chia as a sex
+  // chatbot — "send me naked photos", "ilove you" as an opener,
+  // "que hermosa eres", etc. Catching these BEFORE the GPT model
+  // (and before the free-chat Premium pitch) prevents two ugly
+  // outcomes: (1) GPT improvising flirtation, (2) the photo-feature
+  // pitch ("photos are Premium €25/mo") landing as a response to a
+  // request for nudes — which it actually did for Pilij in the logs.
+  // Also see suppressTrialAfterInappropriate in plan.ts: we don't
+  // dangle a Premium trial after this fires.
+  {
+    category: "inappropriate_content",
+    re: /\b(send (me )?(your )?(a |the )?(pic|pics|picture|pictures|photo|photos|potos|potos?|fotos?|nudes?|tits|boobs|pussy|booty)|naked|nude pic|sexy (pic|photo|potos|fotos)|all open|allopen|cyber|sext|wanna fuck|let'?s fuck|i love you|ilove you|te amo|mi amor|my love|baby|babe|que hermosa|qué hermosa|que linda|qué linda|you'?re (so )?(beautiful|hot|sexy|gorgeous|fine)|are you single|got a boyfriend|do you have a boyfriend|want to be my girlfriend|wanna be my girlfriend|marry me|kiss me|date me)\b/i,
+    name: "inappropriate_content",
   },
 ];
 
@@ -127,6 +143,19 @@ If you've already filed a complaint, that's a real step forward 🌿 — keep re
 
 I'm here when you want to come back and chat. ❤️`;
 
+// Inappropriate-content deflection. Crucially does NOT mention the
+// Premium price tag — pitching "€25/month and I'll send photos" in
+// response to "send me naked photos" is the bug we're fixing. Warm
+// but firm, names the misunderstanding, redirects to learning.
+const INAPPROPRIATE_RESPONSE = (name: string | null): string =>
+  `Eyyy ${name ?? "amig@"} 😅 soy tu profesora de español, no una novia virtual.
+
+If you want me to teach you words for "hello", "I'm hungry", how to order in a restaurant, or how to flirt in Spanish *properly* (that's actually fun) — sí, hablamos. 🌿
+
+If you want anything else — that's not what I do. Volvamos al español, ¿vale?
+
+*(I'm your Spanish teacher, not a virtual girlfriend — let's get back to Spanish, okay?)*`;
+
 const SOFT_FOLLOWUP = (name: string | null): string =>
   `I hear you ${name ?? ""}🌿 I still think reaching out to someone trained to help is the right move — the resources I shared earlier are open 24/7. I'm here whenever you want to chat about Spanish. ❤️`;
 
@@ -147,17 +176,29 @@ export async function respondToSafetyIssue(args: RespondArgs): Promise<true> {
   const safetyState = ((memory as { safety_state?: Record<string, string> })
     .safety_state ?? {}) as Record<string, string>;
   const lastIso = safetyState[args.match.category];
-  const withinCooldown =
-    lastIso &&
-    Date.now() - new Date(lastIso).getTime() < COOLDOWN_HOURS * 60 * 60 * 1000;
 
-  const reply = withinCooldown
-    ? SOFT_FOLLOWUP(name)
+  // Inappropriate-content gets a shorter cooldown (1h) — the
+  // deflection should land freshly each time someone tests, but
+  // we don't want to spam it every turn either. Other categories
+  // keep the full 6h.
+  const effectiveCooldownHours =
+    args.match.category === "inappropriate_content" ? 1 : COOLDOWN_HOURS;
+  const withinShortCooldown =
+    lastIso &&
+    Date.now() - new Date(lastIso).getTime() <
+      effectiveCooldownHours * 60 * 60 * 1000;
+
+  const reply = withinShortCooldown
+    ? args.match.category === "inappropriate_content"
+      ? `${name ? `${name}, ` : ""}still here to teach Spanish 🌿 ¿Qué quieres aprender?`
+      : SOFT_FOLLOWUP(name)
     : args.match.category === "self_harm"
       ? SELF_HARM_RESPONSE(name)
       : args.match.category === "abuse_disclosure"
         ? ABUSE_DISCLOSURE_RESPONSE(name)
-        : WORKPLACE_ABUSE_RESPONSE(name);
+        : args.match.category === "workplace_abuse"
+          ? WORKPLACE_ABUSE_RESPONSE(name)
+          : INAPPROPRIATE_RESPONSE(name);
 
   await sendText(args.whatsappNumber, reply);
 

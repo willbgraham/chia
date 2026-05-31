@@ -15,6 +15,7 @@ import { updateState } from "@/lib/handlers/state";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { curriculumUrl } from "@/lib/account/magic-link";
 import { logMessage } from "@/lib/handlers/messages";
+import { detectSafetyIssue, respondToSafetyIssue } from "@/lib/handlers/safety";
 
 // Logger wrapper that mirrors a Chia outbound to the messages table,
 // so admin viewers (and future analytics) can see what an onboarding
@@ -48,6 +49,26 @@ export async function handleOnboarding(args: OnboardingArgs): Promise<void> {
       role: "user",
       content: args.userMessage,
     });
+  }
+
+  // Safety check — inappropriate / sexual content from ad-driven
+  // users showed up at step 2 in the logs (real users asking for
+  // naked photos before even giving their name). Deflect those here
+  // BEFORE the step handler tries to parse their reply as a name or
+  // a level, and stay on the same state (no advance). The trial-offer
+  // gate in free-chat also sees safety_state.inappropriate_content
+  // and won't dangle Premium after this fires.
+  if (args.step !== "onboarding_step_1" && args.userMessage) {
+    const safetyMatch = detectSafetyIssue(args.userMessage);
+    if (safetyMatch) {
+      await respondToSafetyIssue({
+        userId: args.userId,
+        whatsappNumber: args.whatsappNumber,
+        userMessage: args.userMessage,
+        match: safetyMatch,
+      });
+      return;
+    }
   }
   switch (args.step) {
     case "onboarding_step_1":
@@ -230,7 +251,7 @@ async function processStep2(args: OnboardingArgs): Promise<void> {
 // Was processStep4 in the old flow. Renamed for clarity since it's
 // now the only intermediate step between name capture and going live.
 async function processLevelStep(args: OnboardingArgs): Promise<void> {
-  const level = parseLevel(args.userMessage);
+  const level = await parseLevel(args.userMessage);
   if (!level) {
     await sendAndLog(
       args.userId,
@@ -378,7 +399,7 @@ async function processStep3(args: OnboardingArgs): Promise<void> {
 
 // ── Step 4: level → ask learning style ──────────────────────────────────────
 async function processStep4(args: OnboardingArgs): Promise<void> {
-  const level = parseLevel(args.userMessage);
+  const level = await parseLevel(args.userMessage);
   if (!level) {
     await sendText(args.whatsappNumber, "Pick 1–4 for your level 😊");
     return;
@@ -569,12 +590,95 @@ function parseLanguage(msg: string): string | null {
   return null;
 }
 
-function parseLevel(msg: string): Level | null {
+// Parse the Spanish-level reply. The old parser was strict-equal on
+// "1" / "2" / "3" / "4" — so "4 level" wouldn't match. Andy in the
+// logs typed exactly "4 level" and got rejected; he also tried
+// "English", "No Spanish", "4 level", "You" all failing. Now we:
+//   1. Look for a 1-4 digit anywhere in the message (word-boundary)
+//   2. Natural-language phrases ("complete beginner", "no spanish",
+//      "i know a little", "fluent", etc.)
+//   3. GPT-4o-mini fallback for anything else
+// Returns null only when the reply genuinely doesn't convey a level.
+async function parseLevel(msg: string): Promise<Level | null> {
   const t = msg.trim().toLowerCase();
-  if (t === "1" || t === "2" || t.includes("beginner") || t.includes("little"))
+  if (!t) return null;
+
+  // 1. Digit anywhere (word-boundary). Catches "4 level", "level 4",
+  // "i'm a 2", "I'd say 3", "(4)" etc.
+  const digit = t.match(/(?:^|\D)([1-4])(?:\D|$)/);
+  if (digit) {
+    const n = Number(digit[1]);
+    if (n === 1 || n === 2) return "beginner";
+    if (n === 3) return "intermediate";
+    if (n === 4) return "advanced";
+  }
+
+  // 2. Common natural-language phrases.
+  if (
+    /\b(complete beginner|total beginner|know nothing|nothing|nada|no spanish|just starting|never (studied|spoken)|brand new|first time)\b/.test(
+      t,
+    )
+  ) {
     return "beginner";
-  if (t === "3" || t.includes("intermediate")) return "intermediate";
-  if (t === "4" || t.includes("advanced")) return "advanced";
+  }
+  if (
+    /\b(know a little|a little|a bit|some spanish|some basics|basic|basics|hola( only)?|knows? hola)\b/.test(
+      t,
+    )
+  ) {
+    return "beginner";
+  }
+  if (
+    /\b(intermediate|medium|middle|decent|conversational|getting there|getting better)\b/.test(
+      t,
+    )
+  ) {
+    return "intermediate";
+  }
+  if (
+    /\b(advanced|fluent|near native|near[- ]?fluent|c1|c2|b2|pretty good|very good|i speak (it )?well|i know spanish|hablo español)\b/.test(
+      t,
+    )
+  ) {
+    return "advanced";
+  }
+  if (/\bbeginner\b/.test(t)) return "beginner";
+
+  // 3. GPT fallback — one cheap call per onboarding turn to handle
+  // anything weird. Returns null if the reply genuinely doesn't
+  // convey a level.
+  try {
+    const { chatCompletion } = await import("@/lib/messaging/openai");
+    const system =
+      `Map the student's Spanish-level reply to one of: "beginner", "intermediate", "advanced". ` +
+      `Return JSON: {"level":"beginner|intermediate|advanced|null"}. ` +
+      `Return null only if the reply doesn't express a Spanish level (e.g. a greeting, a question back, off-topic). ` +
+      `"No Spanish", "none", "nothing" → beginner. ` +
+      `"I know hola only" → beginner. ` +
+      `"I lived in Spain for years" → advanced.`;
+    const out = await chatCompletion(
+      [
+        { role: "system", content: system },
+        { role: "user", content: msg.slice(0, 200) },
+      ],
+      {
+        model: "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 20,
+        response_format: { type: "json_object" },
+      },
+    );
+    const parsed = JSON.parse(out) as { level?: Level | null };
+    if (
+      parsed.level === "beginner" ||
+      parsed.level === "intermediate" ||
+      parsed.level === "advanced"
+    ) {
+      return parsed.level;
+    }
+  } catch (err) {
+    console.error("[onboarding] GPT level extraction failed:", err);
+  }
   return null;
 }
 
